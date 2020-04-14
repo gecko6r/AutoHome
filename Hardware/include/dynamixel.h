@@ -12,7 +12,7 @@
 #define _HARDWARE_DYNAMIXEL_H
 
 
-#endif
+
 
 #include "sys.h"
 
@@ -249,3 +249,4 @@ void DXL_PrintStatusBuf(void);
 void void DXL_PrintBuf(uint8_t* ucBuf, uint8_t ucLen, EPrintFormat ePrintFormat);											   
 #endif 
 /* ---------------------------------------------------------------------------*/
+#endif
