@@ -1,9 +1,37 @@
+/**
+  ***********************************UTF-8***************************************
+  * @file    gyro.h
+  * @author  Xiong
+  * @version V1.0
+  * @date    02-July-2020
+  * @brief   此文件用于定义陀螺仪数据读写函数
+  ******************************************************************************  
+  */ 
+
 #ifndef _GYRO_H
 #define _GYRO_H
 
 #include "sys.h"
+#include "i2c.h"
 
-#define GyroType_t 	I2cErrType_t
+/* Macro definations -----------------------------------------*/
+
+#define GYRO_I2C				((I2C_TypeDef*) I2C2)
+#define GYRO_SLAVE_ADDR			((uint8_t) 0x50)
+#define GYRO_BUF_SIZE			((uint8_t) 20)
+#define LOW_BYTE(a)				((uint8_t)	(((uint16_t)(a)) &	0xff))
+#define HIGH_BYTE(a)			((uint8_t)	(((uint16_t)(a)) >> 8))
+
+/* Macro type definations -----------------------------------------*/
+#define GyroErrType_t 			I2cErrType_t
+#define GyroTimeType_t			GyroTimeType
+#define GyroAccType_t			GyroAccType
+#define GyroAngVelType_t		GyroAngVelType
+#define GyroMagType_t			GyroMagType
+#define GyroAngleType_t			GyroAngleType
+#define GyroPortStatusType_t	GyroPortStatusType
+#define GyroGPSInfoType_t		GyroGPSInfoType
+#define GyroQType_t				GyroQType
 
 /* 陀螺仪寄存器地址 -----------------------------------------*/	
 #define gyroSAVE				((uint8_t) 0x00)		//保存当前配置
@@ -76,17 +104,10 @@
 /* ---------------------------- -----------------------------------------*/
 
 
-/* Private typedefs definations -----------------------------------------*/
-typedef struct GyroTime 		GyroTimeType_t;
-typedef struct GyroAcc 			GyroAccType_t;
-typedef struct GyroAngVel 		GyroAngVelType_t;
-typedef struct GyroMag 			GyroMagType_t;
-typedef struct GyroAngle 		GyroAngleType_t;
-typedef struct GyroPortStatus 	GyroPortStatusType_t;
-typedef struct GPSInfo 			GyroGPSInfoType_t;
-typedef struct GyroQ 			GyroQType_t;
+
 
 /* Private structs definations -----------------------------------------*/
+
 //陀螺仪时间
 struct GyroTime
 {
@@ -153,14 +174,22 @@ struct GyroQ
 { short q[4];
 };
 
-
+/* Private typedefs definations -----------------------------------------*/
+typedef struct GyroTime 		GyroTimeType;
+typedef struct GyroAcc 			GyroAccType;
+typedef struct GyroAngVel 		GyroAngVelType;
+typedef struct GyroMag 			GyroMagType;
+typedef struct GyroAngle 		GyroAngleType;
+typedef struct GyroPortStatus 	GyroPortStatusType;
+typedef struct GPSInfo 			GyroGPSInfoType;
+typedef struct GyroQ 			GyroQType;
 
 /* Private enum definations -----------------------------------------*/
 enum ePackType{
-	PACK_ACC = 0x51,
-	PACK_ANG_VEL = 0x52,
-	PACK_ANG = 0x53,
-	PACK_MAG = 0x54,
+	PACK_ACC 		= 0x51,
+	PACK_ANG_VEL 	= 0x52,
+	PACK_ANG 		= 0x53,
+	PACK_MAG 		= 0x54,
 	
 };
 
@@ -170,16 +199,31 @@ enum ePackType{
 void GYRO_Init(void);
 
 /* 陀螺仪寄存器操作 -----------------------------------------*/	
+uint8_t Gyro_RegSingleWrite(uint8_t ucRegAddr,
+							uint16_t usSrc,
+							GyroErrType_t* pErr);
+uint8_t Gyro_RegSingleRead(	uint8_t ucRegAddr,
+							uint16_t* pusDst,
+							GyroErrType_t* pErr);
+uint8_t Gyro_RegMultiWrite(	uint8_t ucRegAddr,
+							uint8_t ucRegCount,
+							uint16_t* pusSrcBuf,
+							GyroErrType_t* pErr);
+uint8_t Gyro_RegMultiRead(	uint8_t ucRegAddr,
+							uint8_t ucRegCount,
+							uint16_t* pusDstBuf,
+							GyroErrType_t* pErr);
 
+/* 陀螺仪数据函获取函数 -----------------------------------------*/	
+GyroTimeType_t 			Gyro_GetCurrTime(GyroErrType_t* pErr);
+GyroAccType_t 			Gyro_GetCurrAcc(GyroErrType_t* pErr);
+GyroAngVelType_t 		Gyro_GetCurrAngVel(GyroErrType_t* pErr);
+GyroMagType_t 			Gyro_GetCurrMag(GyroErrType_t* pErr);
+GyroAngleType_t 		Gyro_GetCurrAng(GyroErrType_t* pErr);
+GyroPortStatusType_t 	Gyro_GetCurrPortStatus(GyroErrType_t* pErr);
+GyroGPSInfoType_t 		Gyro_GetCurrGPSInfo(GyroErrType_t* pErr);
+GyroQType_t				Gyro_GetCurrQ(GyroErrType_t* pErr);
 
-/* 获取陀螺仪数据 -----------------------------------------*/	
-GyroTimeType_t 			GYRO_GetCurrTime(void);
-GyroAccType_t 			GYRO_GetCurrAcc(void);
-GyroAngVelType_t 		GYRO_GetCurrAngVel(void);
-GyroMagType_t 			GYRO_GetCurrMag(void);
-GyroAngleType_t 		GYRO_GetCurrAng(void);
-GyroPortStatusType_t 	GYRO_GetCurrPortStatus(void);
-GyroGPSInfoType_t 		GYRO_GetCurrGPSInfo(void);
-GyroQType_t				GYRO_GetCurrQ(void);
+/* 陀螺仪参数设定函数 -----------------------------------------*/	
  
 #endif

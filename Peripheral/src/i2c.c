@@ -1,8 +1,20 @@
+/**
+  ***********************************UTF-8***************************************
+  * @file    i2c.c
+  * @author  Xiong
+  * @version V1.0
+  * @date    02-July-2020
+  * @brief   此文件用于定义STM32的IIC操作函数
+  ******************************************************************************  
+  */ 
+  
 #include "i2c.h"
 
 
-static uint16_t usTimeCount;
-I2cErrType_t i2cError;
+static uint16_t usTimeCount;			//用于检测线路超时
+I2cErrType_t i2cError;					//用于检测IIC通讯错误
+
+//错误处理宏定义
 #define _I2C_ERR_HANDLE		{I2C_GenerateSTOP(I2Cx, ENABLE); return 1;}
 
 /* ---------------------------------------------------------------------------*/
@@ -148,7 +160,7 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 /****
 	* @brief	I2C接收一个字节，*err为0时，数据才有效
     * @param  	I2Cx：I2C外设
-    * @param  	ucSlaveAddr：从设备地址	
+    * @param  	ucSlaveAddr：从设备地址左移1	
     * @param	ucRegAddr：寄存器地址
     * @param  	err：错误信息存储地址
 	* @retval 	0：无错误，非0：有错误

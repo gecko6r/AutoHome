@@ -4,8 +4,7 @@
   * @author  Xiong
   * @version V1.0
   * @date    02-July-2020
-  * @brief   This file contains all the functions prototypes for the Dynamixel 
-  *          servo control
+  * @brief   此文件用于定义Dynamix舵机的寄存器地址以及通讯用的结构和函数等
   ******************************************************************************  
   */ 
 
