@@ -13,16 +13,16 @@
 
 #include "sys.h"
 
-#define I2C_TIME_OUT		((uint16_t) 500)	//I2C通讯超时阈值	
+#define I2C_TIME_OUT		((uint16_t) 1000)	//I2C通讯超时阈值	
 
 typedef enum I2C_Err_Type{
-	I2C_ERR_NoError = 0,
-	I2C_ERR_Busy,
-	I2C_ERR_StartTimeOut,
-	I2C_ERR_SendSlaveAddrTimeOut,
-	I2C_ERR_SendRegAddrTimeOut,
-	I2C_ERR_SendDataTimeOut,
-	I2C_ERR_ReadTimeOut,
+	I2C_ERR_NoError 				= 0,
+	I2C_ERR_Busy					= 1,
+	I2C_ERR_StartTimeOut			= 2,
+	I2C_ERR_SendSlaveAddrTimeOut	= 4,
+	I2C_ERR_SendRegAddrTimeOut		= 8,
+	I2C_ERR_SendDataTimeOut			= 16,
+	I2C_ERR_ReadTimeOut				= 32,
 	
 	
 }I2cErrType_t;

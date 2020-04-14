@@ -248,7 +248,7 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_SendSlaveAddrTimeOut;
+			*err |= I2C_ERR_SendSlaveAddrTimeOut;
 			_I2C_ERR_HANDLE
 		}
 	}
@@ -265,7 +265,7 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_ReadTimeOut;
+			*err |= I2C_ERR_ReadTimeOut;
 			_I2C_ERR_HANDLE
 		}
 	}
@@ -486,7 +486,7 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 			usTimeCount++;
 			if (usTimeCount > I2C_TIME_OUT)
 			{
-				*err = I2C_ERR_ReadTimeOut;
+				*err |= I2C_ERR_ReadTimeOut;
 				_I2C_ERR_HANDLE
 			}
 		}

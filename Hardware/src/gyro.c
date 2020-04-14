@@ -1,5 +1,5 @@
 /**
-  ***********************************UTF-8***************************************
+  ***********************************UTF-8**************************************
   * @file    gyro.c
   * @author  Xiong
   * @version V1.0
@@ -15,7 +15,7 @@
 	* @param  	None
 	* @retval 	None
 	*/
-void GYRO_Init(void)
+void Gyro_Init(void)
 {
 	IIC_Init();
 }
@@ -32,8 +32,12 @@ uint8_t Gyro_RegSingleWrite(uint8_t ucRegAddr,
 							uint16_t usSrc,
 							GyroErrType_t* pErr)
 {
-	uint8_t ucBuf[2] = {LOW_BYTE(usSrc), HIGH_BYTE(usSrc)};
-	return I2C_MultiWrite(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr, 2, ucBuf, pErr);
+	uint8_t ucBuf[2] ={0};
+	ucBuf[0] = LOW_BYTE(usSrc);
+	ucBuf[1] = HIGH_BYTE(usSrc);
+	
+	return I2C_MultiWrite(GYRO_I2C, GYRO_SLAVE_ADDR<<1,
+							ucRegAddr, 2, ucBuf, pErr);
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -50,7 +54,8 @@ uint8_t Gyro_RegSingleRead( uint8_t ucRegAddr,
 {
 	uint8_t ucBuf[2] = {0};
 	uint8_t ret = 0;
-	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr, 2, ucBuf, pErr);
+	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1,
+							ucRegAddr, 2, ucBuf, pErr);
 	*pusDst = (ucBuf[1]<<8 | ucBuf[0]);
 	return ret;
 }
@@ -71,7 +76,7 @@ uint8_t Gyro_RegMultiWrite( uint8_t ucRegAddr,
 {
 	//要写入的字节数量
 	const uint8_t ucByteCount = 2 * ucRegCount;
-	uint8_t ucBuf[ucByteCount];
+	uint8_t ucBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t i = 0;
 	
 	//将uint16数组转换成uint8数组，低字节在前
@@ -101,7 +106,7 @@ uint8_t Gyro_RegMultiRead(	uint8_t ucRegAddr,
 {
 	//要读取的字节数量
 	const uint8_t ucByteCount = 2 * ucRegCount;
-	uint8_t ucBuf[ucByteCount];
+	uint8_t ucBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t i = 0, ret;
 	
 	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr,
@@ -203,7 +208,7 @@ GyroMagType_t Gyro_GetCurrMag(GyroErrType_t* pErr)
 	
 	return xGyroMag;
 }
-/* ---------------------------------------------------------------------------*/		
+/* ---------------------------------------------------------------------------*/
 											   
 /****
 	* @brief	读取陀螺仪角度信息
@@ -216,11 +221,14 @@ GyroAngleType_t Gyro_GetCurrAng(GyroErrType_t* pErr)
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroANGV_AXISX, 3, usBuf, pErr);
+	ret = Gyro_RegMultiRead(gyroROLL, 3, usBuf, pErr);
 	
-	xGyroAngle.roll 	= usBuf[0] / 32768.0 * 180.0;
-	xGyroAngle.pitch 	= usBuf[1] / 32768.0 * 180.0;
-	xGyroAngle.yaw 		= usBuf[2] / 32768.0 * 180.0;
+	xGyroAngle.roll 	= (short)usBuf[0] / 32768.0 * 180.0;
+	xGyroAngle.pitch 	= (short)usBuf[1] / 32768.0 * 180.0;
+	xGyroAngle.yaw 		= (short)usBuf[2] / 32768.0 * 180.0;
+//	xGyroAngle.roll 	= usBuf[0];
+//	xGyroAngle.pitch 	= usBuf[1];
+//	xGyroAngle.yaw 		= usBuf[2];
 	
 	return xGyroAngle;
 }	

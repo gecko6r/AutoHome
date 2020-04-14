@@ -3,7 +3,7 @@
 #include "delay.h"
 #include "usart.h"
 #include "led.h"
-#include "i2c.h"
+#include "gyro.h"
 
 #include "dynamixel.h"
  
@@ -24,41 +24,22 @@ void task2_task(void * pvParameters);
 TaskHandle_t Task2Task_Handler;		//
 
 
-uint8_t flag = 0, count = 0, ret = 0;
-uint8_t i = 0;
-uint8_t ucBuf[20] = {0};
-I2cErrType_t err = I2C_ERR_NoError;
-uint8_t dataBuf[2] = {0x00, 0x00};
-uint8_t saveBuf[2] = {0x00, 0x00};
+
 int main(void)
 {	
 	
 	
-	uint32_t buf[16] = {0};
-	
-	for(i=0; i<16; i++)
-	{
-		buf[i] = 2047;
-	}
+
 	
 	delay_init(168);
 	
 	DXL_ServoInit(eBD2M, ENABLE);
 	USART1_Init(921600);
-	IIC_Init();
-	
+	Gyro_Init();
 	LED_Init();
 	
 	
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
-	
-	LED = 0;
-	delay_ms(1000);
-	DXL_SetAllGoalPos(buf);
-	delay_ms(100);
-	LED = 1;
-	xServoMsg.err = false;
-		
 
 	xTaskCreate((TaskFunction_t	) start_task,
 				(char*			) "start_task",
@@ -100,7 +81,7 @@ void task1_task(void * pvParameters)
 	{
 
 		
-//		LED = ~LED;
+		LED = ~LED;
 //		
 		vTaskDelay(300 / portTICK_RATE_MS);
 	}
@@ -108,51 +89,29 @@ void task1_task(void * pvParameters)
 
 void task2_task(void * pvParameters)
 {
-//	uint8_t bytes = 0;
+	GyroAccType_t xGyroAcc;
+	GyroAngleType_t xGyroAngle;
+	GyroErrType_t xGyroErr;
 	
 	while(1)
 	{
 
-//		if(!flag)
-//		{
-//			DXL_GetRegState(ADDR_Present_Current, REG_2_BYTE);
-//			flag = 1;
-//		}
-
-//		if(isMsgDataReady(xServoMsg))
-//		{
-//			for(count=0; count<xServoMsg.ucByteRecved; count++)
-//			ret = DXL_GetPresentParam(&xServoMsg);
-//			
-//			if(!ret)
-//			{
-//				
-//				
-//				printf("%6.2f\r\n", fServoStatusBuf[COL_Current][0]);
-//			}
-//		}
-//		
-//		flag = 0;
-
+		xGyroAcc = Gyro_GetCurrAcc(&xGyroErr);
 		
+		printf("acc_x: %03.3f, acc_y: %03.3f, acc_z: %03.3f\r\n", 
+				xGyroAcc.x, xGyroAcc.y, xGyroAcc.z);
+		printf("err info: %02X\r\n", xGyroErr);
 
-		count++;
-//		I2C_MultiRead(I2C2, 0xa0, 0x34, 12, ucBuf, &err);
-//		printf("count: %3d, err: %d\r\n", count, err);
-//		for(i=0; i<12; i++)
-//			printf("%02X ", ucBuf[i]);
-//		printf("\r\n\r\n");
+		xGyroErr = 0;
+		
+		xGyroAngle = Gyro_GetCurrAng(&xGyroErr);
+		printf("roll: %03.3f, pitch: %03.3f, yaw: %03.3f\r\n", 
+				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
+//				printf("roll: %d, pitch: %d, yaw: %d\r\n", 
+//				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
+		printf("err info: %02X\r\n\r\n", xGyroErr);
 
-		I2C_MultiWrite(I2C2, 0xa0, 0x1b, 2, dataBuf, &err);
-		printf("count: %3d, err: %d\r\n", count, err);
-		
-		I2C_MultiWrite(I2C2, 0xa0, 0x00, 2, saveBuf, &err);
-		printf("count: %3d, err: %d\r\n", count, err);
-		
-		I2C_MultiRead(I2C2, 0xa0, 0x1b, 1, ucBuf, &err);
-		printf("count: %3d, err: %d\r\n", count, err);
-		printf("data_L: %d, data_H: %d\r\n", ucBuf[0], ucBuf[1]);
-		vTaskDelay(500 / portTICK_RATE_MS);
+		vTaskDelay(50 / portTICK_RATE_MS);
 	}
 		
 }

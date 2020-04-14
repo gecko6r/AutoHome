@@ -1,5 +1,5 @@
 /**
-  ***********************************UTF-8***************************************
+  ***********************************UTF-8**************************************
   * @file    dunamixel.h
   * @author  Xiong
   * @version V1.0
@@ -15,9 +15,6 @@
 #endif
 
 #include "sys.h"
-
-
-#define DATA_BUF_MAX_LEN			( 255 )	//max buffer size
 
 
 #define LOW_BYTE(a)					((uint8_t)	(((uint16_t)(a)) &	0xff))
@@ -48,11 +45,11 @@
 #define Status_ID_Byte				((uint8_t) 4 )
 #define SERVO_STATUS_MSG_LEN		((uint8_t) 24 )
 #define SERVO_STATUS_NUM			((uint8_t) 5 )
-#define COL_Pos				((uint8_t) 0 )
-#define COL_Volt			((uint8_t) 1 )
-#define COL_Current			((uint8_t) 2 )
-#define COL_Velocity		((uint8_t) 3 )
-#define COL_Tick			((uint8_t) 4 )
+#define COL_Pos						((uint8_t) 0 )
+#define COL_Volt					((uint8_t) 1 )
+#define COL_Current					((uint8_t) 2 )
+#define COL_Velocity				((uint8_t) 3 )
+#define COL_Tick					((uint8_t) 4 )
 
 
 /* Servo Communication Macros Definition -----------------------------------------------------------*/
@@ -127,17 +124,26 @@
 #define INST_Bulk_Read				(uint8_t)( 0x92 )
 #define INST_Bulk_Write				(uint8_t)( 0x93 )
 
-/* Servo Error */
-#define	RESULT_FAIL					(uint8_t)( 0x01 )	//Failed to process the sent Instruction pack
-#define INSTRUCTION_ERROR			(uint8_t)( 0x02 )	//Undefined Instruction used || Action used without Reg Write
-#define	CRC_ERROR					(uint8_t)( 0x03 )	//CRC of sent packet does not match
-#define	DATA_RANGE_ERROR			(uint8_t)( 0x04 )	//Reg addr to write is out of range (mix-max)
-#define	DATA_LENGTH_ERROR			(uint8_t)( 0x05 )	//Attempt to write data which is shorter than reg len
-#define	DATA_LIMIT_ERROR			(uint8_t)( 0x06 )	//Data to write is out of reg value range
-#define	ACCESS_ERROR				(uint8_t)( 0x07 )	//Attempt to write in a ReadOnly reg
-														//||Attempt to read from a WriteOnly reg
-														//||Attempt to write in EEPROM while servo Torque Enable is On														
-/*-----------------------------------------------------------------------------------------------------*/
+/* Servo Error ---------------------------------------------------------------*/
+/*Failed to process the sent Instruction pack*/
+#define	RESULT_FAIL					(uint8_t)( 0x01 )	
+//Undefined Instruction used || Action used without Reg Write
+#define INSTRUCTION_ERROR			(uint8_t)( 0x02 )
+//CRC of sent packet does not match
+#define	CRC_ERROR					(uint8_t)( 0x03 )	
+//Reg addr to write is out of range (mix-max)
+#define	DATA_RANGE_ERROR			(uint8_t)( 0x04 )	
+//Attempt to write data which is shorter than reg len
+#define	DATA_LENGTH_ERROR			(uint8_t)( 0x05 )	
+//Data to write is out of reg value range
+#define	DATA_LIMIT_ERROR			(uint8_t)( 0x06 )	
+//Attempt to write in a ReadOnly reg
+//||Attempt to read from a WriteOnly reg
+//||Attempt to write in EEPROM while servo Torque Enable is On
+#define	ACCESS_ERROR				(uint8_t)( 0x07 )	
+														
+																												
+/*----------------------------------------------------------------------------*/
 
 //byte info of Instruction packet 
 enum EPackByte{  
@@ -200,37 +206,37 @@ typedef struct _stServoMsg_{
 }ServoMsg;	
 	
 
-/* Global Vaiables-----------------------------------------------------------*/
+/* Global Vaiables------------------------------------------------------------*/
 extern float fServoStatusBuf[SERVO_STATUS_NUM][SERVO_NUM];
 extern ServoMsg xServoMsg;
 
-/* Functions Definition -----------------------------------------------------------*/
+/* Functions Definition ------------------------------------------------------*/
 void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState);
 
 void DXL_RegWrite(uint16_t usRegAddr, uint16_t usRegSize, 
 					uint32_t ulData, uint8_t ucId);
 void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize, 
-						uint8_t ucServoNum, uint32_t* ulDataBuf, uint8_t* ucIdBuf);
+					uint8_t ucServoNum, uint32_t* ulDataBuf, uint8_t* ucIdBuf);
 void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId);
 void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, 
 						uint8_t ucServoNum, uint8_t* ucIdBuf);
 void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable);
 uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg);
 
-/* EEPROM Registers Write Functions Definition ----------------------------------------*/
+/* EEPROM Registers Write Functions Definition -------------------------------*/
 void DXL_SetAllBaudrate(EDxlBaudrate eBaudrate);
 void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel);
 
-/* RAM Registers Write Functions Definition ----------------------------------------*/
+/* RAM Registers Write Functions Definition ----------------------------------*/
 void DXL_SetAllTorque(FunctionalState fTorqueState);
 void DXL_SetAllGoalPos(uint32_t* ulGoalPosBuf);
 void DXL_SetAllLedState(FunctionalState fLedState);
 
-/* Servo Registers Read Functions Definition ----------------------------------------*/
+/* Servo Registers Read Functions Definition ---------------------------------*/
 void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize);
 void DXL_GetAllLedState(void);
 
-/* Dynamixel Servo Message Functions Definition ----------------------------------------*/
+/* Dynamixel Servo Message Functions Definition ------------------------------*/
 ServoMsg xCreateMsg(uint8_t* ucSrcBuf);
 void xClearMsg(ServoMsg* pMsg);
 bool isMsgWriteEnable(ServoMsg xMsg);
