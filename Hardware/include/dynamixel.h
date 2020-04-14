@@ -17,7 +17,7 @@
 #include "sys.h"
 
 
-#define LOW_BYTE(a)					((uint8_t)	(((uint16_t)(a)) &	0xff))
+#define LOW_BYTE(a)				    ((uint8_t)	(((uint16_t)(a)) &	0xff))
 #define HIGH_BYTE(a)				((uint8_t)	(((uint16_t)(a)) >> 8))
 #define LOW_16BIT(a)				((uint16_t)	(((uint32_t)(a)) &	0xffff))
 #define HIGH_16BIT(a)				((uint16_t)	(((uint32_t)(a)) >> 16))
