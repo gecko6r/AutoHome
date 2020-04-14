@@ -48,11 +48,11 @@
 #define Status_ID_Byte				((uint8_t) 4 )
 #define SERVO_STATUS_MSG_LEN		((uint8_t) 24 )
 #define SERVO_STATUS_NUM			((uint8_t) 5 )
-#define COL_Pos				((uint8_t) 0 )
-#define COL_Volt			((uint8_t) 1 )
-#define COL_Current			((uint8_t) 2 )
-#define COL_Velocity		((uint8_t) 3 )
-#define COL_Tick			((uint8_t) 4 )
+#define COL_Pos						((uint8_t) 0 )
+#define COL_Volt					((uint8_t) 1 )
+#define COL_Current					((uint8_t) 2 )
+#define COL_Velocity				((uint8_t) 3 )
+#define COL_Tick					((uint8_t) 4 )
 
 
 /* Servo Communication Macros Definition -----------------------------------------------------------*/
