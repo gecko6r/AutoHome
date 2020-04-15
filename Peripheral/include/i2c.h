@@ -1,9 +1,9 @@
 /**
-  ***********************************UTF-8***************************************
+  ***********************************UTF-8**************************************
   * @file    i2c.h
   * @author  Xiong
   * @version V1.0
-  * @date    02-July-2020
+  * @date    16-July-2020
   * @brief   此文件用于定义STM32的IIC操作函数
   ******************************************************************************  
   */ 
@@ -33,12 +33,12 @@ extern I2cErrType_t i2cError;
 
 void IIC_Init(void);
 
-uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
+uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 					uint8_t ucData, I2cErrType_t* err);
-uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
+uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,
 							uint8_t ucRegAddr, I2cErrType_t* err);
-uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
-						uint8_t ucNumToWrite, uint8_t* pucBuffer, I2cErrType_t* err);
-uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
+uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
+					uint8_t ucNumToWrite, uint8_t* pucBuffer, I2cErrType_t* err);
+uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 					uint8_t ucNumToRead, uint8_t* pucBuffer, I2cErrType_t* err);
 #endif

@@ -1,5 +1,5 @@
 /**
-  ***********************************UTF-8***************************************
+  ***********************************UTF-8**************************************
   * @file    i2c.c
   * @author  Xiong
   * @version V1.0
@@ -494,7 +494,10 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		ucNumToRead--;
 
 	}
+	
 	I2C_AcknowledgeConfig(I2Cx, ENABLE);
+	
+	return 0;
 }
 
 

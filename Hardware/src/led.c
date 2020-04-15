@@ -3,7 +3,7 @@
 
 
 /**
-  * @brief  初始化板载应用LED
+  * @brief  鍒濆鍖朙ED
   * @param  None
   * @retval None
   */
@@ -24,7 +24,7 @@ void LED_Init(void)
 }
 
 /**
-  * @brief  This function handles SysTick Handler.
+  * @brief  LED闂儊
   * @param  None
   * @retval None
   */

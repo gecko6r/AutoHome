@@ -28,6 +28,14 @@
   ----------------------------------------------------------------------------*/
   
 #include "nrf24l01p.h"
+#include "usart.h"
+
+/*设定nrf24l01+模块的发送目标地址*/
+const uint8_t NRF_TX_Addr[5] = {0x00, 0x20, 0x16, 0x09, 0x14};
+/*设定nrf24l01+模块的本机接收地址*/
+const uint8_t NRF_RX_Addr[5] = {0x00, 0x19, 0x95, 0x08, 0x18};
+/*设定nrf24l01+模块的收/发频道的中心频率为2484MHz*/
+const uint8_t RF_Channel = 44;
 
 
 /* ---------------------------------------------------------------------------*/		
@@ -47,7 +55,7 @@ static void Nrf_GPIO_Init(void)
 	GPIO_InitStructure.GPIO_Pin 	= nrfIO_CSN_Pin;
 	GPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_OUT;
 	GPIO_InitStructure.GPIO_OType 	= GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
+	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_NOPULL;
 	GPIO_InitStructure.GPIO_Speed 	= GPIO_Speed_50MHz;
 	GPIO_Init(nrfIO_CSN_GPIO, &GPIO_InitStructure);
 	
@@ -62,14 +70,19 @@ static void Nrf_GPIO_Init(void)
 	/* 配置nrf24l01+模块IRQ引脚 */
 	GPIO_InitStructure.GPIO_Pin 	= nrfIO_IRQ_Pin;
 	GPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_IN;
-	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_DOWN;
+	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
 	GPIO_Init(nrfIO_IRQ_GPIO, &GPIO_InitStructure);
 	
 	/* 配置PC5引脚，正常不需要配置 */
 	GPIO_InitStructure.GPIO_Pin 	= GPIO_Pin_5;
 	GPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_IN;
-	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_DOWN;
+	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
 	GPIO_Init(GPIOC, &GPIO_InitStructure);
+	
+	GPIO_SetBits(nrfIO_IRQ_GPIO, nrfIO_IRQ_Pin);
+	GPIO_SetBits(GPIOC, GPIO_Pin_5);
+	GPIO_SetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
+	GPIO_ResetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -110,10 +123,207 @@ void EXTI0_IRQHandler(void)
 {
 	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
 	{
-		
+		printf("reveived\r\n");
 		
 		EXTI_ClearITPendingBit(EXTI_Line0);
 	}
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	使能nrf24l01+ CE引脚
+	* @param  	None
+	* @retval 	None
+	*/
+void Nrf_SetCE_High(void)
+{
+	GPIO_SetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	失能nrf24l01+ CE引脚
+	* @param  	None
+	* @retval 	None
+	*/
+void Nrf_SetCE_Low(void)
+{
+	GPIO_ResetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	使能nrf24l01+ CSN引脚
+	* @param  	None
+	* @retval 	None
+	*/
+void Nrf_SetCSN_High(void)
+{
+	GPIO_SetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	失能nrf24l01+ CSN引脚
+	* @param  	None
+	* @retval 	None
+	*/
+void Nrf_SetCSN_Low(void)
+{
+	GPIO_ResetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	nrf24l01+ 单个寄存器写入,如果写入过程无误，返回值最高为应为0，
+				否则为1
+	* @param  	ucRegAddr：寄存器地址
+	* @param  	ucSrc：待写入的值
+	* @param  	pErr：存储错误信息的指针
+	* @retval 	nrf24l01+ 状态寄存器值
+	*/
+NrfStatusType_t Nrf_RegSingleWrite(uint8_t ucRegAddr, uint8_t ucSrc, 
+									SpiErrType_t* pErr)
+{
+	NrfStatusType_t xNrfStatus = 0;
+	
+	Nrf_SetCSN_Low();
+	
+	/*发送写寄存器操作和寄存器地址*/
+	SPI_Write(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);	
+	/*读nrf24l01+ status值*/
+	xNrfStatus |= SPI_Read(nrfSPI, pErr);
+	/*发送新的寄存器值*/
+	SPI_Write(nrfSPI, ucSrc, pErr);	
+	
+	Nrf_SetCSN_High();
+	
+	return xNrfStatus;
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	nrf24l01+ 单个寄存器读取,如果读取过程无误，返回值最高为应为0，
+				否则为1
+	* @param  	ucRegAddr：寄存器地址
+	* @param  	ucSrc：待写入的值
+	* @param  	pErr：存储错误信息的指针
+	* @retval 	nrf24l01+ 状态寄存器值
+	*/
+NrfStatusType_t Nrf_RegSingleRead(uint8_t ucRegAddr, uint8_t* pucDst, 
+									SpiErrType_t* pErr)
+{
+	NrfStatusType_t xNrfStatus = 0;
+	uint8_t time = 50;
+	Nrf_SetCSN_Low();
+	
+	
+	while(time--);
+	/*发送读寄存器操作和寄存器地址*/
+	SPI_ClearFlag(nrfSPI, SPI_FLAG_RXNE);
+	SPI_Write(nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr);	
+	/*读nrf24l01+ status值*/
+	xNrfStatus |= SPI_Read(nrfSPI, pErr);
+	/*读取寄存器值*/
+	*pucDst = SPI_Read(nrfSPI, pErr);
+		
+	Nrf_SetCSN_High();
+	
+	return xNrfStatus;
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	nrf24l01+ 多个寄存器写入，如果写入过程无误，返回值最高为应为0，
+				否则为1
+	* @param  	ucRegAddr：起始寄存器地址
+	* @param  	ucSrcBuf：待写入的值数组
+	* @param  	ucLen：数组长度
+	* @param  	pErr：存储错误信息的指针
+	* @retval 	nrf24l01+ 状态寄存器值|(errBit<<7)，若有错误errBit为1， 
+				无错误为0
+	*/
+NrfStatusType_t Nrf_RegMultiWrite(uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
+									uint8_t ucLen, SpiErrType_t* pErr)	
+{
+	NrfStatusType_t xStatus = 0;
+	
+	Nrf_SetCSN_Low();
+	
+	/*发送寄存器写操作和起始寄存器地址*/
+	SPI_Write(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);
+	if(pErr != SPI_ERR_NoError)
+	{
+		return xStatus|(1<<7);
+	}
+	
+	/*读状态寄存器值*/
+	xStatus = SPI_Read(nrfSPI, pErr);
+	if(pErr != SPI_ERR_NoError)
+	{
+		return xStatus|(1<<7);
+	}
+	
+	/*发送寄存器值*/
+	while(ucLen--)
+	{
+		SPI_Write(nrfSPI, *(ucSrcBuf++), pErr);
+		if(pErr != SPI_ERR_NoError)
+		{
+			return xStatus|(1<<7);
+		}
+	}
+	
+	Nrf_SetCSN_High();
+	
+	return xStatus;
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	nrf24l01+ 多个寄存器读取，如果读取过程无误，返回值最高为应为0，
+				否则为1
+	* @param  	ucRegAddr：起始寄存器地址
+	* @param  	ucDstBuf：寄存器值存放数组
+	* @param  	ucLen：数组长度
+	* @param  	pErr：存储错误信息的指针
+	* @retval 	nrf24l01+ 状态寄存器值|(errBit<<7)，若有错误errBit为1， 
+				无错误为0
+	*/
+NrfStatusType_t Nrf_RegMultiRead(uint8_t ucRegAddr, uint8_t* ucDstBuf, 
+									uint8_t ucLen, SpiErrType_t* pErr)
+{
+	NrfStatusType_t xStatus = 0;
+	
+	Nrf_SetCSN_Low();
+	
+	/*发送寄存器读操作和起始寄存器地址*/
+	SPI_Write(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);
+	if(pErr != SPI_ERR_NoError)
+	{
+		return xStatus|(1<<7);
+	}
+	
+	/*读状态寄存器值*/
+	xStatus = SPI_Read(nrfSPI, pErr);
+	if(pErr != SPI_ERR_NoError)
+	{
+		return xStatus|(1<<7);
+	}
+	
+	/*接收寄存器值*/
+	while(ucLen--)
+	{
+		*(ucDstBuf++) = SPI_Read(nrfSPI, pErr);
+		if(pErr != SPI_ERR_NoError)
+		{
+			return xStatus|(1<<7);
+		}
+	}
+	
+	Nrf_SetCSN_High();
+	
+	return xStatus;
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -145,119 +355,4 @@ NrfStatusType_t Nrf_Init(NRF_InitTypeDef* NrfInitStruct)
 	xStatus = Nrf_RegSingleWrite(nrfREG_CONFIG, ucConfig, &xErr);
 	
 	return xStatus;
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	使能nrf24l01+ CE引脚
-	* @param  	None
-	* @retval 	None
-	*/
-void Nrf_SetCE_HIGH(void)
-{
-	GPIO_SetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	失能nrf24l01+ CE引脚
-	* @param  	None
-	* @retval 	None
-	*/
-void Nrf_SetCE_LOW(void)
-{
-	GPIO_ResetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	使能nrf24l01+ CSN引脚
-	* @param  	None
-	* @retval 	None
-	*/
-void Nrf_EnableCSN(void)
-{
-	GPIO_SetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	失能nrf24l01+ CSN引脚
-	* @param  	None
-	* @retval 	None
-	*/
-void Nrf_DisableCSN(void)
-{
-	GPIO_ResetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	nrf24l01+ 单个寄存器写入,如果写入过程无误，返回值最高为应为0，
-				否则为1
-	* @param  	ucRegAddr：寄存器地址
-	* @param  	ucSrc：待写入的值
-	* @param  	pErr：存储错误信息的指针
-	* @retval 	nrf24l01+ 状态寄存器值
-	*/
-NrfStatusType_t Nrf_RegSingleWrite(uint8_t ucRegAddr, uint8_t ucSrc, 
-									SpiErrType_t* pErr)
-{
-	NrfStatusType_t xNrfStatus = 0;
-	
-	Nrf_SetCSN_LOW();
-	
-	/*发送写寄存器操作和寄存器地址*/
-	SPI_Write(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);	
-	/*读nrf24l01+ status值*/
-	xNrfStatus |= SPI_Read(nrfSPI, pErr);
-	/*发送新的寄存器值*/
-	SPI_Write(nrfSPI, ucSrc, pErr);	
-	
-	Nrf_SetCSN_HIGH();
-	
-	return xNrfStatus;
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	nrf24l01+ 单个寄存器读取,如果写入过程无误，返回值最高为应为0，
-				否则为1
-	* @param  	ucRegAddr：寄存器地址
-	* @param  	ucSrc：待写入的值
-	* @param  	pErr：存储错误信息的指针
-	* @retval 	nrf24l01+ 状态寄存器值
-	*/
-NrfStatusType_t Nrf_RegSingleRead(uint8_t ucRegAddr, uint8_t* pucDst, 
-									SpiErrType_t* pErr)
-{
-	NrfStatusType_t xNrfStatus = 0;
-	Nrf_SetCSN_LOW();
-	
-	/*发送读寄存器操作和寄存器地址*/
-	SPI_Write(nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr);	
-	/*读nrf24l01+ status值*/
-	xNrfStatus |= SPI_Read(nrfSPI, pErr);
-	/*读取寄存器值*/
-	*pucDst = SPI_Read(nrfSPI, pErr);
-		
-	Nrf_SetCE_HIGH();
-	
-	return xNrfStatus;
-}
-/* ---------------------------------------------------------------------------*/		
-											   
-/****
-	* @brief	nrf24l01+ 多个寄存器写入
-				否则为1
-	* @param  	ucRegAddr：起始寄存器地址
-	* @param  	ucSrcBuf：待写入的值数组
-	* @param  	ucLen：数组长度
-	* @param  	pErr：存储错误信息的指针
-	* @retval 	nrf24l01+ 状态寄存器值
-	*/
-NrfStatusType_t Nrf_RegMultiWrite(uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
-									uint8_t ucLen, SpiErrType_t* pErr)	
-{
-	
 }

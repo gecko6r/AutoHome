@@ -4,7 +4,7 @@
 #include "usart.h"
 #include "led.h"
 #include "gyro.h"
-
+#include "nrf24l01p.h"
 #include "dynamixel.h"
  
 #define START_TASK_PRIO			1
@@ -25,14 +25,29 @@ TaskHandle_t Task2Task_Handler;		//
 
 
 
+
 int main(void)
 {	
+	NRF_InitTypeDef Nrf_InitStructure;
+	
 	delay_init(168);
 	
 	DXL_ServoInit(eBD2M, ENABLE);
 	USART1_Init(921600);
 	Gyro_Init();
 	LED_Init();
+	
+	
+//	Nrf_InitStructure.NRF_Mask_RX_DR = NRF_Mask_RX_DR_Enable;
+//	Nrf_InitStructure.NRF_Mask_TX_DS = NRF_Mask_TX_DS_Disable;
+//	Nrf_InitStructure.NRF_Mask_MAX_RT = NRF_Mask_MAX_RT_Disable;
+//	Nrf_InitStructure.NRF_EN_CRC = NRF_CRC_Enable;
+//	Nrf_InitStructure.NRF_CRC_Coding_Bytes = NRF_CRC_Coding_2_Bytes;
+//	Nrf_InitStructure.NRF_PWR_Manage = NRF_Power_Up;
+//	Nrf_InitStructure.NRF_PRIM_RX = NRF_PRIM_PRX;
+//	Nrf_Init(&Nrf_InitStructure);
+	
+	SPI1_Init();
 	
 	
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
@@ -85,29 +100,56 @@ void task1_task(void * pvParameters)
 
 void task2_task(void * pvParameters)
 {
-	GyroAccType_t xGyroAcc;
-	GyroAngleType_t xGyroAngle;
-	GyroErrType_t xGyroErr;
+//	GyroAccType_t xGyroAcc;
+//	GyroAngleType_t xGyroAngle;
+//	GyroErrType_t xGyroErr;
+	
+	NrfStatusType_t xStatus = 0;
+	SpiErrType_t xErr = 0;
+	uint8_t i = 0;
 	
 	while(1)
 	{
+		uint8_t buf[5] = {0};
 
-		xGyroAcc = Gyro_GetCurrAcc(&xGyroErr);
-		
-		printf("acc_x: %03.3f, acc_y: %03.3f, acc_z: %03.3f\r\n", 
-				xGyroAcc.x, xGyroAcc.y, xGyroAcc.z);
-		printf("err info: %02X\r\n", xGyroErr);
+//		xGyroAcc = Gyro_GetCurrAcc(&xGyroErr);
+//		
+//		printf("acc_x: %03.3f, acc_y: %03.3f, acc_z: %03.3f\r\n", 
+//				xGyroAcc.x, xGyroAcc.y, xGyroAcc.z);
+//		printf("err info: %02X\r\n", xGyroErr);
 
-		xGyroErr = 0;
-		
-		xGyroAngle = Gyro_GetCurrAng(&xGyroErr);
-		printf("roll: %03.3f, pitch: %03.3f, yaw: %03.3f\r\n", 
-				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
-//				printf("roll: %d, pitch: %d, yaw: %d\r\n", 
+//		xGyroErr = 0;
+//		
+//		xGyroAngle = Gyro_GetCurrAng(&xGyroErr);
+//		printf("roll: %03.3f, pitch: %03.3f, yaw: %03.3f\r\n", 
 //				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
-		printf("err info: %02X\r\n\r\n", xGyroErr);
+////				printf("roll: %d, pitch: %d, yaw: %d\r\n", 
+////				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
+//		printf("err info: %02X\r\n\r\n", xGyroErr);
+		
+//		xStatus = Nrf_RegMultiWrite(nrfREG_RXADDR, (uint8_t*)NRF_RX_Addr, 5, &xErr);
+//		printf("status: %d, err: %d\r\n", xStatus, xErr);
+//		
+//		xStatus = Nrf_RegMultiRead(nrfREG_RXADDR, buf, 5, &xErr);
+//		printf("status: %d, err: %d\r\n", xStatus, xErr);
+//		
+//		for(i=0; i<5; i++)
+//		{
+//			printf("%d ", buf[i]);
+//		}
+//		printf("\r\n\r\n");
+		
+////		Nrf_SetCSN_Low();
+		xStatus = Nrf_RegSingleWrite(nrfCMD_W_REG|nrfREG_RF_CH, 40, &xErr);
+////		Nrf_SetCSN_High();
+		printf("status: %d, err: %d\r\n", xStatus, xErr);
+		xStatus = Nrf_RegSingleRead(nrfCMD_R_REG|nrfREG_RF_CH, &i, &xErr);
+		printf("status: %d, err: %d, val: %d\r\n", xStatus, xErr, i);
 
-		vTaskDelay(50 / portTICK_RATE_MS);
+		xErr = 0;
+		xStatus = 0;
+		
+		vTaskDelay(500 / portTICK_RATE_MS);
 	}
 		
 }

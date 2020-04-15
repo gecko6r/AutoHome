@@ -35,4 +35,8 @@ void SPI1_Init(void);
 void SPI_Write(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErrType_t* pSpiErr);
 uint8_t SPI_Read(SPI_TypeDef* SPIx, SpiErrType_t* pSpiErr);
 
+u8 SPI_RW(u8 data);
+uint8_t NRF_Read_Reg(uint8_t reg);
+uint8_t NRF_Write_Reg(uint8_t reg, uint8_t value);
+
 #endif

@@ -122,8 +122,8 @@ void USART2_Init(u32 ulBaudrate)
 	USART_Init(USART2, &USART_InitStruct); 						
 	
 	NVIC_InitStructure.NVIC_IRQChannel 						= USART2_IRQn;	
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority	= 2;				
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority 			= 1;				
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority	= 4;				
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority 			= 0;				
 	NVIC_InitStructure.NVIC_IRQChannelCmd 					= ENABLE;		
 	NVIC_Init(&NVIC_InitStructure);				
 
