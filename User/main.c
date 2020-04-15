@@ -27,10 +27,6 @@ TaskHandle_t Task2Task_Handler;		//
 
 int main(void)
 {	
-	
-	
-
-	
 	delay_init(168);
 	
 	DXL_ServoInit(eBD2M, ENABLE);

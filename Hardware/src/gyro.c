@@ -232,22 +232,3 @@ GyroAngleType_t Gyro_GetCurrAng(GyroErrType_t* pErr)
 	
 	return xGyroAngle;
 }	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	

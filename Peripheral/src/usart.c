@@ -10,12 +10,7 @@
 #include "usart.h"	
 #include "dma.h"
 #include "dynamixel.h"
-#include "led.h"
-
-//static u8 ucUsart1TxBuf[MAX_BUF_SIZE] = {0U};
-//static u8 ucUsart1RxBuf[MAX_BUF_SIZE] = {0U}; 
-
-	
+#include "led.h"	
 
 
 /*----------------------------------------------------------------*/
