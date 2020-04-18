@@ -101,13 +101,8 @@ static const char* cServoStatusMsgBuf[SERVO_STATUS_NUM] = {
 								"Present realtime tick: ",};
 /* ---------------------------------------------------------------------------*/
 
-/*Static Functions Definition ------------------------------------------------*/
-#ifndef IN_DEBUG_MODE
-static uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen);
-static void DXL_PrintStatusBuf(void);
-static void DXL_PrintBuf(uint8_t* ucBuf, uint8_t ucLen, EPrintFormat ePrintFormat);											   
-#endif 										   
-/* ---------------------------------------------------------------------------*/		
+									   
+/* Dynamixel 相关函数定义-----------------------------------------------------*/		
 											   
 /****
 	* @brief	初始化舵机通讯数组、串口、DMA，并使能舵机力矩

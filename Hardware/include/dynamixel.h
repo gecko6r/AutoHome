@@ -38,7 +38,7 @@
 #define REG_4_BYTE					((uint8_t) 4 )
 
 
-/* Servo Status Matrix Buffer Definition -----------------------------------------------------------*/
+/* Servo Status Matrix Buffer Definition -------------------------------------*/
 #define MIN_STATUS_PACK_LEN			((uint8_t) 11 )	//
 #define Stasus_Param_Byte			((uint8_t) 9 )
 #define STATUS_INST_BYTE			((uint8_t) 7 )
@@ -52,7 +52,7 @@
 #define COL_Tick					((uint8_t) 4 )
 
 
-/* Servo Communication Macros Definition -----------------------------------------------------------*/
+/* Servo Communication Macros Definition -------------------------------------*/
 
 /*EEPROM Area*/
 #define dxlREG_Mode_Number			( ( uint16_t ) 0 )
@@ -223,7 +223,7 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize,
 void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable);
 uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg);
 
-///* Servo communication buffer operating functions Definition -----------------*/
+///* Servo communication buffer operating functions Definition ---------------*/
 //void DXL_SetTxBuffer(uint8_t* pucBuf, uint16_t usRegAddr, uint16_t usRegSize, 
 //					uint8_t ucServoNum, uint32_t* ulDataBuf, uint8_t* ucIdBuf);
 
