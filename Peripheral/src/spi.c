@@ -5,8 +5,8 @@
   * @version V1.0
   * @date    16-July-2020
   * @brief   此文件用于定义STM32的SPI操作函数
-  * @note	 文件仅用于NRF24L01+的数据收发，因此SPI_Write(  )、SPI_Read(  )函数只允
-			 收发uint8_t类型的数据
+  * @note	 文件仅用于NRF24L01+的数据收发，因此SPI_Write(  )、SPI_Read(  )函数
+			只允收发uint8_t类型的数据
   ******************************************************************************  
   */ 
 #include "spi.h"
@@ -31,8 +31,16 @@ void SPI1_Init( void )
 	
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
 	GPIO_Init( GPIOA, &GPIO_InitStructure ); 
+	
+
+	GPIO_PinAFConfig(GPIOA,GPIO_PinSource5,GPIO_AF_SPI1); 
+	GPIO_PinAFConfig(GPIOA,GPIO_PinSource6,GPIO_AF_SPI1);
+	GPIO_PinAFConfig(GPIOA,GPIO_PinSource7,GPIO_AF_SPI1);
+	
 	
 	/*SPI设置为双线双向全双工*/
 	SPI_InitStructure.SPI_Direction 		= SPI_Direction_2Lines_FullDuplex;
@@ -46,8 +54,8 @@ void SPI1_Init( void )
 	SPI_InitStructure.SPI_CPHA 				= SPI_CPHA_1Edge;
 	/*SPI NSS信号由软件管理*/
 	SPI_InitStructure.SPI_NSS 				= SPI_NSS_Soft;
-	/*SPI波特率预分频值为256*/
-	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16;
+	/*SPI波特率预分频值为64*/
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_64;
 	/*SPI数据传输从MSB开始*/
 	SPI_InitStructure.SPI_FirstBit 			= SPI_FirstBit_MSB;
 	/*SPI CRC计算多项式*/
@@ -61,12 +69,12 @@ void SPI1_Init( void )
 /* ---------------------------------------------------------------------------*/
 
 /****
-	* @brief	SPI发送一个字节
+	* @brief	SPI发送并接收一个字节
     * @param  	ucSrc：待发送的字节数据
 	* @param	pSpiErr：SPI错误类型指针
-    * @retval 	None
+    * @retval 	SPI收到的字节
     */
-void SPI_Write( SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErrType_t* pSpiErr )
+uint8_t SPI_RW_1Byte(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErr_t* pSpiErr)
 {	
 	/*防止等待数据发送超时*/
 	SPI_TIME_COUNT = 0;
@@ -77,51 +85,12 @@ void SPI_Write( SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErrType_t* pSpiErr )
 		if( SPI_TIME_COUNT > SPI_TIME_OUT_THRESHOLD )
 		{
 			*pSpiErr |= SPI_ERR_WaitingToSendTimeOut;
-			return;
+			return 0;
 		}
 	}
 	
 	SPI_SendData( SPIx, ucSrc );
-	/*防止数据发送超时*/
-//	SPI_TIME_COUNT = 0;
-//	while( SPI_GetFlagStatus( SPIx, SPI_FLAG_TXE ) == RESET )
-//	{
-//		SPI_TIME_COUNT++;
-//		
-//		if( SPI_TIME_COUNT > SPI_TIME_OUT_THRESHOLD )
-//		{
-//			*pSpiErr |= SPI_ERR_SendTimeOut;
-//			return;
-//		}
-//	}
-//	
-//	/*防止等待读数据超时*/
-//	SPI_TIME_COUNT = 0;
-//	while( SPI_GetFlagStatus( SPIx, SPI_FLAG_RXNE ) == RESET )
-//	{
-//		SPI_TIME_COUNT++;
-//		
-//		if( SPI_TIME_COUNT > SPI_TIME_OUT_THRESHOLD )
-//		{
-//			*pSpiErr |= SPI_ERR_ReceiveTimeOut;
-//			return;
-//		}
-//	}
-//	
-//	ucSrc = SPI_ReceiveData( SPIx );
 	
-}
-/* ---------------------------------------------------------------------------*/
-
-/****
-	* @brief	SPI接收一个字节
-    * @param  	pucDst：存放接收数据的指针
-	* @param	pSpiErr：SPI错误类型指针
-    * @retval 	收到的字节
-    */	
-uint8_t SPI_Read( SPI_TypeDef* SPIx, SpiErrType_t* pSpiErr )
-{
-	/*防止等待数据接收超时*/
 	SPI_TIME_COUNT = 0;
 	while( SPI_GetFlagStatus( SPIx, SPI_FLAG_RXNE ) == RESET )
 	{
@@ -129,10 +98,11 @@ uint8_t SPI_Read( SPI_TypeDef* SPIx, SpiErrType_t* pSpiErr )
 		
 		if( SPI_TIME_COUNT > SPI_TIME_OUT_THRESHOLD )
 		{
-			*pSpiErr |= SPI_ERR_ReceiveTimeOut;
+			*pSpiErr |= SPI_ERR_ReadTimeOut;
 			return 0;
 		}
 	}
 	
-	return ( uint8_t ) SPI1->DR;
+	return ( uint8_t ) SPI_ReceiveData( SPIx );
+	
 }

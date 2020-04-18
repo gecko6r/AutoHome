@@ -1,25 +1,14 @@
 #include "dma.h"
 #include "led.h"
 #include "usart.h"
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Global variables ---------------------------------------------------------*/
-uint8_t ucDmaUsart2TxBuf[MAX_BUF_SIZE] = {0U};
-uint8_t ucDmaUsart2RxBuf[MAX_BUF_SIZE] = {0U};
+#include "dataManager.h"
 
-/* Static variables ---------------------------------------------------------*/
+/* Static variables ----------------------------------------------------------*/
 static DMA_Stream_TypeDef* dmaUsart2Tx = DMA1_Stream6;
 static DMA_Stream_TypeDef* dmaUsart2Rx = DMA1_Stream5;
 
-/* Public functions -----------------------------------------------*/
 
-
-/* ---------------------------------------------------------------------------*/
-
-
-
-/* Public functions -----------------------------------------------*/
+/* Public functions ----------------------------------------------------------*/
 
 
 /**
@@ -33,7 +22,7 @@ void DMA_Usart2_Tx_Init(void)
 	NVIC_InitTypeDef NVIC_InitStructure;
 	
 	u32 ulPeriphAddr = (u32)&(USART2->DR);									//外设地址：串口2数据寄存器
-	u32 ulMemAddr = (u32) ucDmaUsart2TxBuf;									//存储器地址；舵机发送数据数组
+	u32 ulMemAddr = (u32) ucServoTxBuffer;									//存储器地址；舵机发送数据数组
 	u32 ulBufferSize = MAX_BUF_SIZE;										//最大传送数据量
 	
 	
@@ -81,7 +70,7 @@ void DMA_Usart2_Rx_Init(void)
 	DMA_Stream_TypeDef* DMA_Stream = dmaUsart2Rx;							
 	
 	u32 ulPeriphAddr = (u32)&(USART2->DR);									//外设地址：串口2数据寄存器
-	u32 ulMemAddr = (u32) ucDmaUsart2RxBuf;									//存储器地址；舵机返回数据数组
+	u32 ulMemAddr = (u32) ucServoRxBuffer;									//存储器地址；舵机返回数据数组
 	u32 ulBufferSize = MAX_BUF_SIZE;										//最大传送数据量	
 	
 	
@@ -141,11 +130,12 @@ void DMA1_Stream6_IRQHandler(void)
   * @param  usLen：发送的数据长度
   * @retval None
   */
-void DMA_SendData(uint16_t usLen)
+void DMA_SendData(uint8_t* pucSrc, uint16_t usLen)
 {
 
 	DMA_Cmd(DMA1_Stream6, DISABLE );  //
  	DMA_SetCurrDataCounter(DMA1_Stream6, usLen);//
+//	DMA_MemoryTargetConfig(DMA1_Stream6, (uint32_t)pucSrc, (uint32_t)pucSrc);
 	
 	USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
 	USART_ITConfig(USART2, USART_IT_IDLE, DISABLE);

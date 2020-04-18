@@ -1,5 +1,8 @@
 #include "stdio.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "delay.h"
 #include "usart.h"
 #include "led.h"
@@ -7,150 +10,163 @@
 #include "nrf24l01p.h"
 #include "dynamixel.h"
  
-#define START_TASK_PRIO			1
-#define START_STK_SIZE			120
-void start_task(void * pvParameters);  //
-TaskHandle_t StartTask_Handler;		//
  
  
-#define TASK1_TASK_PRIO			2
-#define TASK1_STK_SIZE			120
-void task1_task(void * pvParameters);
-TaskHandle_t Task1Task_Handler;		// 
- 
-#define TASK2_TASK_PRIO			3
-#define TASK2_STK_SIZE			120 
-void task2_task(void * pvParameters);
-TaskHandle_t Task2Task_Handler;		//
+TaskHandle_t readTask_Handler;		//
+TaskHandle_t ctrlTask_Handler;		// 
+TaskHandle_t ledTask_Handler;		//
 
+GyroAccType_t xAcc;
+GyroAngleType_t xAngle;
+GyroErrType_t gyroErr = I2C_ERR_NoError;
+
+uint32_t buf1[3] = { 1024, 1024, 1024};
+uint32_t buf2[3] = { 3072, 3072, 3072};
+static void vSensorReadTask(void)
+{
+	while(1)
+	{
+		DXL_GetRegState(dxlREG_Present_Current, 2);
+		xAngle = Gyro_GetCurrAng(&gyroErr);
+		xAcc = Gyro_GetCurrAcc(&gyroErr);
+		
+		if(xServoMsg.bDataReady != RESET)
+		{
+			DXL_GetPresentParam(&xServoMsg);
+		}
+
+		printf("acc_x: %3.2f, acc_x: %3.2f, acc_x: %3.2f\r\n",
+										xAcc.x, xAcc.y, xAcc.z);
+		printf("roll: %3.2f, pitch: %3.2f, yaw: %3.2f\r\n",
+										xAngle.roll, xAngle.pitch, xAngle.yaw);
+		printf("%3.2f\r\n", fServoStatusBuf[COL_Current][0]);
+		
+		vTaskDelay(50);
+	}
+	
+}
+
+static void vServoCtrlTask(void)
+{
+	uint32_t pos1 = 1024, pos2 = 3072;
+	uint8_t flag = 0;
+	
+	while(1)
+	{
+		taskENTER_CRITICAL();
+		if(flag == 0)
+		{
+			DXL_SetAllGoalPos(buf1);
+			flag = 1;
+		}
+		
+		else if(flag == 1)
+		{
+			DXL_SetAllGoalPos(buf2);
+			flag = 0;
+		}
+		
+		taskEXIT_CRITICAL();
+		
+
+
+		vTaskDelay(1000);
+	}
+	
+}
+
+static void vLedTask(void)
+{
+	while(1)
+	{
+		LED = ~LED;
+		
+		vTaskDelay(300);
+	}
+}
+
+
+void vApplicationMallocFailedHook( void )
+{
+    while(1) blink(2, 100);
+}
 
 
 
 int main(void)
 {	
-	NRF_InitTypeDef Nrf_InitStructure;
+	
+	SpiErr_t xSpiErr = 0;
+	NrfStatus_t xNrfStatus = 0;
+	uint8_t val = 0;
+	uint8_t status = 0;
 	
 	delay_init(168);
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 	
 	DXL_ServoInit(eBD2M, ENABLE);
 	USART1_Init(921600);
 	Gyro_Init();
 	LED_Init();
-	
-	
-//	Nrf_InitStructure.NRF_Mask_RX_DR = NRF_Mask_RX_DR_Enable;
-//	Nrf_InitStructure.NRF_Mask_TX_DS = NRF_Mask_TX_DS_Disable;
-//	Nrf_InitStructure.NRF_Mask_MAX_RT = NRF_Mask_MAX_RT_Disable;
-//	Nrf_InitStructure.NRF_EN_CRC = NRF_CRC_Enable;
-//	Nrf_InitStructure.NRF_CRC_Coding_Bytes = NRF_CRC_Coding_2_Bytes;
-//	Nrf_InitStructure.NRF_PWR_Manage = NRF_Power_Up;
-//	Nrf_InitStructure.NRF_PRIM_RX = NRF_PRIM_PRX;
-//	Nrf_Init(&Nrf_InitStructure);
-	
+	Nrf_GPIO_Init();
 	SPI1_Init();
 	
+	blink(10, 100);
 	
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+	
+	
 
-	xTaskCreate((TaskFunction_t	) start_task,
-				(char*			) "start_task",
-				(uint16_t		) START_STK_SIZE,
-				(void * 		) NULL,
-				(UBaseType_t	) START_TASK_PRIO,
-				(TaskHandle_t*	) &StartTask_Handler);
-    vTaskStartScheduler();          
-}
- 
-void start_task(void * pvParameters)
-{
-	//创建Task1
-	xTaskCreate((TaskFunction_t	) task1_task,
-				(char*			) "task1_task",
-				(uint16_t		) TASK1_STK_SIZE,
-				(void * 		) NULL,
-				(UBaseType_t	) TASK1_TASK_PRIO,
-				(TaskHandle_t*	) &Task1Task_Handler);
+//	xTaskCreate( ( TaskFunction_t ) vSensorReadTask, "sensorRead", 1024, 
+//								( void * ) NULL, 3, &readTask_Handler);
+//	xTaskCreate( ( TaskFunction_t ) vServoCtrlTask, "servoCtrl", 200, 
+//								( void * ) NULL, 4, &readTask_Handler);
+//	xTaskCreate( ( TaskFunction_t ) vLedTask, "blink", 20, 
+//								( void * ) NULL, 5, &readTask_Handler);
+//	
+//    vTaskStartScheduler();   
+
+
+	/* 	正常情况下，系统不会到达这里，如果到达这里，可能原因是任务的栈空间太小，
+		或者系统分配的堆大小不足*/
 				
-	//创建Task2
-	xTaskCreate((TaskFunction_t	) task2_task,
-				(char*			) "task2_task",
-				(uint16_t		) TASK2_STK_SIZE,
-				(void * 		) NULL,
-				(UBaseType_t	) TASK2_TASK_PRIO,
-				(TaskHandle_t*	) &Task2Task_Handler);
-	vTaskDelete(StartTask_Handler); //NULL
-				
-
-}
- 
-
-void task1_task(void * pvParameters)
-{
-	char task1_num=0;
+	/*	快速闪烁LED以指示错误*/
 	
 	while(1)
 	{
-
-		
-		LED = ~LED;
+//		xNrfStatus = Nrf_RegSingleRead(nrfREG_RF_CH, &val, &xSpiErr);
 //		
-		vTaskDelay(300 / portTICK_RATE_MS);
-	}
-}
+//		printf("status: %02X, spi_err: %02X\r\n", xNrfStatus, xSpiErr);
+//		printf("val: %d\r\n\r\n", val);
+//		
+//		xSpiErr = 0;
+//		delay_ms(500);
+		
+//		Nrf_SetCSN_Low();
+//		
+//		while (SPI_GetFlagStatus(SPI1, SPI_FLAG_TXE) == RESET){}//ֈսע̍ȸࠕ  
+//		SPI_SendData(SPI1, 0x05); //ͨڽ΢ʨSPIxע̍һٶbyte  ˽ߝ
 
-void task2_task(void * pvParameters)
-{
-//	GyroAccType_t xGyroAcc;
-//	GyroAngleType_t xGyroAngle;
-//	GyroErrType_t xGyroErr;
+//		while (SPI_GetFlagStatus(SPI1, SPI_FLAG_RXNE) == RESET){} //ֈսޓ˕Ϊһٶbyte  
+//		status = SPI_ReceiveData(SPI1); //׵ܘͨڽSPIxخ޼ޓ˕ք˽ߝ	
+////		SPI_ClearFlag(SPI1, SPI_FLAG_RXNE);
+//			
+////		while (SPI_GetFlagStatus(SPI1, SPI_FLAG_TXE) == RESET){}//ֈսע̍ȸࠕ  
+//		SPI_SendData(SPI1, 0x05); //ͨڽ΢ʨSPIxע̍һٶbyte  ˽ߝ
+
+//		while (SPI_GetFlagStatus(SPI1, SPI_FLAG_RXNE) == RESET){} //ֈսޓ˕Ϊһٶbyte  
+//		val = ( uint8_t ) SPI_ReceiveData(SPI1); //׵ܘͨڽSPIxخ޼ޓ˕ք˽ߝ	
+// 		 
+//		Nrf_SetCSN_High();
+
+		status = Nrf_RegSingleRead(nrfREG_RF_CH, &val, &xSpiErr);
+			
+		printf("status: %d, value: %d\r\n", status, val);
+		delay_ms(500);
 	
-	NrfStatusType_t xStatus = 0;
-	SpiErrType_t xErr = 0;
-	uint8_t i = 0;
-	
-	while(1)
-	{
-		uint8_t buf[5] = {0};
-
-//		xGyroAcc = Gyro_GetCurrAcc(&xGyroErr);
-//		
-//		printf("acc_x: %03.3f, acc_y: %03.3f, acc_z: %03.3f\r\n", 
-//				xGyroAcc.x, xGyroAcc.y, xGyroAcc.z);
-//		printf("err info: %02X\r\n", xGyroErr);
-
-//		xGyroErr = 0;
-//		
-//		xGyroAngle = Gyro_GetCurrAng(&xGyroErr);
-//		printf("roll: %03.3f, pitch: %03.3f, yaw: %03.3f\r\n", 
-//				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
-////				printf("roll: %d, pitch: %d, yaw: %d\r\n", 
-////				xGyroAngle.roll, xGyroAngle.pitch, xGyroAngle.yaw);
-//		printf("err info: %02X\r\n\r\n", xGyroErr);
 		
-//		xStatus = Nrf_RegMultiWrite(nrfREG_RXADDR, (uint8_t*)NRF_RX_Addr, 5, &xErr);
-//		printf("status: %d, err: %d\r\n", xStatus, xErr);
-//		
-//		xStatus = Nrf_RegMultiRead(nrfREG_RXADDR, buf, 5, &xErr);
-//		printf("status: %d, err: %d\r\n", xStatus, xErr);
-//		
-//		for(i=0; i<5; i++)
-//		{
-//			printf("%d ", buf[i]);
-//		}
-//		printf("\r\n\r\n");
-		
-////		Nrf_SetCSN_Low();
-		xStatus = Nrf_RegSingleWrite(nrfCMD_W_REG|nrfREG_RF_CH, 40, &xErr);
-////		Nrf_SetCSN_High();
-		printf("status: %d, err: %d\r\n", xStatus, xErr);
-		xStatus = Nrf_RegSingleRead(nrfCMD_R_REG|nrfREG_RF_CH, &i, &xErr);
-		printf("status: %d, err: %d, val: %d\r\n", xStatus, xErr, i);
-
-		xErr = 0;
-		xStatus = 0;
-		
-		vTaskDelay(500 / portTICK_RATE_MS);
 	}
-		
+	while(1) blink(10, 100);
 }
+ 
+
  

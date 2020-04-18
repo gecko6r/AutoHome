@@ -162,15 +162,15 @@ void USART1_IRQHandler(void)
     */ 
 void USART2_IRQHandler(void) 
 {	
-	static u8 data = 0, i = 0;
+	static u8 data = 0;
 
 	//串口2接收中断标志置位
 	if(USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
 	{
 		//将接受到的字节放入接收数组
-		ucDmaUsart2RxBuf[xServoMsg.ucByteRecved++] = USART_ReceiveData(USART2);
-		//点亮LED
-		LED = 0;
+		ucServoRxBuffer[xServoMsg.ucByteRecved++] = USART_ReceiveData(USART2);
+//		//点亮LED
+//		LED = 0;
 		//清除串口2接收中断标志位
 		USART_ClearITPendingBit(USART2, USART_IT_RXNE);
 
@@ -184,8 +184,8 @@ void USART2_IRQHandler(void)
 			xServoMsg.bDataReady = true;
 		//这里是读一次接收寄存器以清除IDLE标志（详见手册）
 		data  = USART_ReceiveData(USART2);
-		//关闭LED
-		LED = 1;
+//		//关闭LED
+//		LED = 1;
 		
 	}
 }

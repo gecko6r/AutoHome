@@ -14,29 +14,25 @@
 
 
 /* SPI通讯超时阈值 -----------------------------------------------------------*/
-#define SPI_TIME_OUT_THRESHOLD	((uint16_t) 100)	
-#define SpiErrType_t			SpiErrType
+#define SPI_TIME_OUT_THRESHOLD		( ( uint16_t ) 500)	
+#define SpiErr_t					SpiErrType
 
 
 
 /* SPI错误类型定义------------------------------------------------------------*/
 typedef enum SPI_Err_Type{
-	SPI_ERR_NoError 				= 0,
-	SPI_ERR_SendTimeOut				= 1,
-	SPI_ERR_ReceiveTimeOut			= 2,
-	SPI_ERR_WaitingToSendTimeOut	= 4,
-	SPI_ERR_SendRegAddrTimeOut		= 8,
-	SPI_ERR_SendDataTimeOut			= 16,
-	SPI_ERR_ReadTimeOut				= 32,
+	SPI_ERR_NoError 				= 0x00,
+	SPI_ERR_SendTimeOut				= 0x01,
+	SPI_ERR_ReceiveTimeOut			= 0x02,
+	SPI_ERR_WaitingToSendTimeOut	= 0x04,
+	SPI_ERR_SendRegAddrTimeOut		= 0x08,
+	SPI_ERR_SendDataTimeOut			= 0x10,
+	SPI_ERR_ReadTimeOut				= 0x20,
 }SpiErrType;
 
 /* SPI收发函数定义------------------------------------------------------------*/
 void SPI1_Init(void);
-void SPI_Write(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErrType_t* pSpiErr);
-uint8_t SPI_Read(SPI_TypeDef* SPIx, SpiErrType_t* pSpiErr);
+uint8_t SPI_RW_1Byte(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErr_t* pSpiErr)
 
-u8 SPI_RW(u8 data);
-uint8_t NRF_Read_Reg(uint8_t reg);
-uint8_t NRF_Write_Reg(uint8_t reg, uint8_t value);
 
 #endif

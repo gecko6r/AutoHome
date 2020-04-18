@@ -1,7 +1,6 @@
 #按文件夹
 
-User/*
-!User/main.c
+User
 CORE
 FreeRTOS
 FWLIB

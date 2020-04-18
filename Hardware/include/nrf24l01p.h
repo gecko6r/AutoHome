@@ -16,7 +16,7 @@
 #define nrfSPI						( ( SPI_TypeDef * ) SPI1 )
 
 /* nrf24l01+ 类型宏定义	------------------------------------------------------*/
-#define NrfStatusType_t 			NrfStatusType
+#define NrfStatus_t 				NrfStatusType
 
 /* nrf24l01+模块时钟和GPIO、EXTI宏定义	--------------------------------------*/
 #define nrfRCC						( ( uint32_t ) RCC_AHB1Periph_GPIOA|\
@@ -158,6 +158,12 @@ typedef enum
 	
 }NRF_Auto_Retransmit_Count;
 	
+/*nrf24l01+ 自动重发结构体类型*/
+typedef enum
+{
+	NRF_RX_Mode					= 0x00,
+	NRF_TX_Mode					= 0x01,
+}NRF_Mode_t;
 /*nrf24l01+ 初始化结构体类型*/
 typedef struct NrfInitStruct
 {
@@ -187,23 +193,34 @@ extern const uint8_t NRF_RX_Addr[5];
 extern const uint8_t RF_Channel;
 
 /* nrf24l01+ 寄存器读写函数定义 ----------------------------------------------*/
-NrfStatusType_t Nrf_RegSingleWrite( uint8_t ucRegAddr, uint8_t ucSrc, 
-									SpiErrType_t* pErr );
-NrfStatusType_t Nrf_RegSingleRead( uint8_t ucRegAddr, uint8_t* pucDst, 
-									SpiErrType_t* pErr );
-NrfStatusType_t Nrf_RegMultiWrite( uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
-									uint8_t ucLen, SpiErrType_t* pErr );
-NrfStatusType_t Nrf_RegMultiRead( uint8_t ucRegAddr, uint8_t* ucDstBuf, 
-									uint8_t ucLen, SpiErrType_t* pErr );
+NrfStatus_t Nrf_RegSingleWrite( uint8_t ucRegAddr, uint8_t ucSrc, 
+									SpiErr_t* pErr );
+NrfStatus_t Nrf_RegSingleRead( uint8_t ucRegAddr, uint8_t* pucDst, 
+									SpiErr_t* pErr );
+NrfStatus_t Nrf_RegMultiWrite( uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
+									uint8_t ucLen, SpiErr_t* pErr );
+NrfStatus_t Nrf_RegMultiRead( uint8_t ucRegAddr, uint8_t* ucDstBuf, 
+									uint8_t ucLen, SpiErr_t* pErr );
 
 /* nrf24l01+ 操作函数定义 ----------------------------------------------------*/
-NrfStatusType_t Nrf_Init( NRF_InitTypeDef* NrfInitStruct );
-NrfStatusType_t Nrf_SetAutoACKState( NRF_Data_Pipe xPipe, 
-									FunctionalState fState );
-NrfStatusType_t Nrf_SetRxADDRState( NRF_Data_Pipe xPipe, 
-									FunctionalState fState );
-NrfStatusType_t Nrf_TXData( uint8_t* ucSrcBuf, uint8_t ucLen );
-NrfStatusType_t Nrf_RXData( uint8_t* usDstBuf, uint8_t ucLen );
+NrfStatus_t Nrf_Init( NRF_InitTypeDef* NrfInitStruct );
+NrfStatus_t Nrf_TxData( uint8_t* ucSrcBuf, uint8_t ucLen );
+NrfStatus_t Nrf_RxData( uint8_t* usDstBuf, uint8_t ucLen );
+
+/* nrf24l01+ 参数设定函数定义 ------------------------------------------------*/
+NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe xPipe, FunctionalState fState );
+NrfStatus_t Nrf_SetRxAddrState( NRF_Data_Pipe xPipe, FunctionalState fState );
+NrfStatus_t Nrf_SetPowerState( FunctionalState fState );
+NrfStatus_t Nrf_SetMode( NRF_Mode_t xTxRxMode );
+NrfStatus_t Nrf_SetADDR_Width( NRF_ADDR_Width xWidth);
+NrfStatus_t Nrf_SetAutoRetr( uint8_t RETR_Status );
+NrfStatus_t Nrf_SetRF( uint8_t RF_Channel, uint8_t RF_param );
+NrfStatus_t Nrf_SetRxADDR( const uint8_t* rxAddrBuf, uint8_t addrWidth);
+NrfStatus_t Nrf_SetTxADDR( const uint8_t* txAddrBuf, uint8_t addrWidth);
+
+/* nrf24l01+ 中断函数定义 ------------------------------------------------*/
+uint8_t Nrf_IT_Triggered(void);
+
 
 #ifdef IN_DEBUG_MODE
 void Nrf_SetCSN_Low( void );

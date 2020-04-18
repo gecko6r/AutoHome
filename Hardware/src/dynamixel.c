@@ -28,20 +28,22 @@
 #include "led.h"
 #include "usart.h"
 #include "dma.h"
+#include "controller.h"
 
-/* Static Vaiables-----------------------------------------------------------*/
+/* Static Vaiables------------------------------------------------------------*/
 static uint8_t ucDxlIdBuf[SERVO_NUM] = {0U};
 static uint32_t ulDxlParamBuf[SERVO_NUM] = {0U};
 
-/* Global Vaiables-----------------------------------------------------------*/
+/* Global Vaiables------------------------------------------------------------*/
 float fServoStatusBuf[SERVO_STATUS_NUM][SERVO_NUM] = {0U};
 ServoMsg xServoMsg;
 
 
-/* Constants-----------------------------------------------------------------*/
+/* Constants------------------------------------------------------------------*/
+//DXL servo supported baudrates
 static const uint32_t ulDxlBaudrateBuf[8] = {9600, 57600, 115200,\
 											1000000, 2000000, 3000000,\
-											4000000, 4500000};			//DXL servo supported baudrates
+											4000000, 4500000};			
 
 //Set stall standing as initiate postion	
 static const float ServoPosOffset[18] = {
@@ -122,10 +124,10 @@ void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
 		ucDxlIdBuf[i] = i+1;
 	
 	//初始化舵机通讯数组包头
-	ucDmaUsart2TxBuf[eBYTE_HEADER_1]	= 0xff;
-	ucDmaUsart2TxBuf[eBYTE_HEADER_2]	= 0xff;
-	ucDmaUsart2TxBuf[eBYTE_HRADER_3]	= 0xfd;
-	ucDmaUsart2TxBuf[eBYTE_RESV]		= 0x00;
+	ucServoTxBuffer[eBYTE_HEADER_1]	= 0xff;
+	ucServoTxBuffer[eBYTE_HEADER_2]	= 0xff;
+	ucServoTxBuffer[eBYTE_HRADER_3]	= 0xfd;
+	ucServoTxBuffer[eBYTE_RESV]		= 0x00;
 	
 	//初始化串口及dma
 	USART2_Init(ulDxlBaudrateBuf[eBaudrate]);
@@ -135,7 +137,7 @@ void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
 	//设定舵机力矩
 	DXL_SetAllTorque(fTorqueState);
 	
-	xServoMsg = xCreateMsg(ucDmaUsart2RxBuf);
+	xServoMsg = xCreateMsg(ucServoRxBuffer);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -160,33 +162,33 @@ void DXL_RegWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 	uint16_t usDxlCrcCheck = 0U;
 
-	ucDmaUsart2TxBuf[eBYTE_ID]			= ucId;
-	ucDmaUsart2TxBuf[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_INST]		= INST_REG_Write;
-	ucDmaUsart2TxBuf[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
+	ucServoTxBuffer[eBYTE_ID]			= ucId;
+	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_INST]			= dxlINST_REG_Write;
+	ucServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
 
 	
-	for(i=0; i<usRegSize; i++) ucDmaUsart2TxBuf[4+i] = nthByteOf(ulData, i);
+	for(i=0; i<usRegSize; i++) ucServoTxBuffer[4+i] = nthByteOf(ulData, i);
 	
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucDmaUsart2TxBuf, usPacketSize - 2);
-	ucDmaUsart2TxBuf[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucDmaUsart2TxBuf[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
+	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucDmaUsart2TxBuf, usPacketSize, false);
+	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData(usPacketSize);
+	DMA_SendData(ucServoTxBuffer, usPacketSize);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -214,40 +216,41 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucDmaUsart2TxBuf[eBYTE_ID]			= ID_BROADCAST;
-	ucDmaUsart2TxBuf[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_INST]		= INST_Sync_Write;
-	ucDmaUsart2TxBuf[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	ucDmaUsart2TxBuf[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	ucServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
+	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_INST]			= dxlINST_Sync_Write;
+	ucServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
+	ucServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
 	
 	for(i=0; i<ucServoNum; i++) 
 	{
 
-		ucDmaUsart2TxBuf[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
+		ucServoTxBuffer[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
 
 		for(j=0; j<usRegSize; j++)
-			ucDmaUsart2TxBuf[SYNC_OPT_START_ADDR+i*(usRegSize+1)+1 + j] = nthByteOf(ulDataBuf[i], j);
+			ucServoTxBuffer[SYNC_OPT_START_ADDR+i*(usRegSize+1)+1 + j] 
+												= nthByteOf(ulDataBuf[i], j);
 	}
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucDmaUsart2TxBuf, usPacketSize - 2);
-	ucDmaUsart2TxBuf[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucDmaUsart2TxBuf[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
+	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 	
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucDmaUsart2TxBuf, usPacketSize, false);
+	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 
-	DMA_SendData(usPacketSize);
+	DMA_SendData(ucServoTxBuffer, usPacketSize);
 	
 }
 /* ---------------------------------------------------------------------------*/
@@ -270,31 +273,31 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucDmaUsart2TxBuf[eBYTE_ID]			= ucId;
-	ucDmaUsart2TxBuf[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_INST]		= INST_Read;
-	ucDmaUsart2TxBuf[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	ucDmaUsart2TxBuf[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	ucServoTxBuffer[eBYTE_ID]			= ucId;
+	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Read;
+	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
+	ucServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucDmaUsart2TxBuf, usPacketSize - 2);
-	ucDmaUsart2TxBuf[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucDmaUsart2TxBuf[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
+	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 	
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucDmaUsart2TxBuf, usPacketSize, false);
+	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData(usPacketSize);
+	DMA_SendData(ucServoTxBuffer, usPacketSize);
 	
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
@@ -308,7 +311,8 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
     * @param  	usRegSize：寄存器大小(Byte)
     * @retval 	None
     */
-void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum, uint8_t* ucIdBuf)
+void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
+					uint8_t* ucIdBuf)
 {
 	uint8_t i = 0;
 	/* 参数长度：寄存器地址+寄存器长度*/
@@ -320,36 +324,36 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucDmaUsart2TxBuf[eBYTE_ID]			= ID_BROADCAST;
-	ucDmaUsart2TxBuf[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucDmaUsart2TxBuf[eBYTE_INST]		= INST_Sync_Read;
-	ucDmaUsart2TxBuf[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	ucDmaUsart2TxBuf[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	ucDmaUsart2TxBuf[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	ucServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
+	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Sync_Read;
+	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
+	ucServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
+	ucServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
 	
 	for(i=0; i<ucServoNum; i++)
 	{
-		ucDmaUsart2TxBuf[SYNC_OPT_START_ADDR + i] = ucDxlIdBuf[i];
+		ucServoTxBuffer[SYNC_OPT_START_ADDR + i] = ucDxlIdBuf[i];
 	}
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucDmaUsart2TxBuf, usPacketSize - 2);
-	ucDmaUsart2TxBuf[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucDmaUsart2TxBuf[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
+	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucDmaUsart2TxBuf, usPacketSize, false);
+	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData(usPacketSize);
+	DMA_SendData(ucServoTxBuffer, usPacketSize);
 	
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
@@ -373,7 +377,8 @@ void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable)
 /* ---------------------------------------------------------------------------*/
 
 /****
-	* @brief	解析舵机返回参数，放入舵机状态数组,此函数会调用下ClearMsg()清理结构体内容
+	* @brief	解析舵机返回参数，放入舵机状态数组,
+				此函数会调用下ClearMsg()清理结构体内容
 	* @param  	pServoMsg：消息结构体指针
 	* @retval 	None
 	*/
@@ -397,11 +402,11 @@ uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg)
 		return 1;
 	
 	//设定当前数据处理方式及存储位置
-	if(usRegAddr == ADDR_Present_Position) 	{ucCol = COL_Pos;		fCoff = 1.0;}
-	if(usRegAddr == ADDR_Present_Voltage) 	{ucCol = COL_Volt; 		fCoff = 0.10;}
-	if(usRegAddr == ADDR_Present_Current) 	{ucCol = COL_Current; 	fCoff = 2.29;}
-	if(usRegAddr == ADDR_Present_Velocity) 	{ucCol = COL_Velocity; 	fCoff = 0.229*360.0/60.0;}
-	if(usRegAddr == ADDR_Realtime_Tick) 	{ucCol = COL_Tick; 		fCoff = 1.0;}
+	if(usRegAddr == dxlREG_Present_Position) 	{ucCol = COL_Pos;		fCoff = 1.0;}
+	if(usRegAddr == dxlREG_Present_Voltage) 	{ucCol = COL_Volt; 		fCoff = 0.10;}
+	if(usRegAddr == dxlREG_Present_Current) 	{ucCol = COL_Current; 	fCoff = 2.29;}
+	if(usRegAddr == dxlREG_Present_Velocity) 	{ucCol = COL_Velocity; 	fCoff = 0.229*360.0/60.0;}
+	if(usRegAddr == dxlREG_Realtime_Tick) 	{ucCol = COL_Tick; 		fCoff = 1.0;}
 
 	//寻找数据包起始位置
 	for(i=0; i<(usBufLen-3); i++)
@@ -486,7 +491,7 @@ void DXL_SetAllBaudrate(EDxlBaudrate eBaudrate)
 	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ulBaudrate;
 
 	DXL_SetAllTorque(DISABLE);
-	DXL_RegSyncWrite(ADDR_Baudrate, REG_1_BYTE, SERVO_NUM, ulDxlParamBuf, ucDxlIdBuf);
+	DXL_RegSyncWrite(dxlREG_Baudrate, REG_1_BYTE, SERVO_NUM, ulDxlParamBuf, ucDxlIdBuf);
 	USART2_Init(ulBaudrate);
 	
 }
@@ -503,7 +508,7 @@ void DXL_SetAllTorque(FunctionalState fTorqueState)
 	
 	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ((fTorqueState == DISABLE) ? 0 : 1);
 	
-	DXL_RegSyncWrite(ADDR_Torque_Enable, REG_1_BYTE, SERVO_NUM,\
+	DXL_RegSyncWrite(dxlREG_Torque_Enable, REG_1_BYTE, SERVO_NUM,\
 										ulDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
@@ -515,7 +520,7 @@ void DXL_SetAllTorque(FunctionalState fTorqueState)
     */
 void DXL_SetAllGoalPos(uint32_t* ulGoalPosBuf)
 {
-	DXL_RegSyncWrite(ADDR_Goal_Position, REG_4_BYTE, SERVO_NUM,\
+	DXL_RegSyncWrite(dxlREG_Goal_Position, REG_4_BYTE, SERVO_NUM,\
 										ulGoalPosBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
@@ -530,7 +535,7 @@ void DXL_SetAllLedState(FunctionalState fLedState)
 	u8 i = 0;
 	
 	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ((fLedState == DISABLE) ? 0 : 1);
-	DXL_RegSyncWrite(ADDR_LED, REG_1_BYTE, SERVO_NUM,\
+	DXL_RegSyncWrite(dxlREG_LED, REG_1_BYTE, SERVO_NUM,\
 										ulDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
@@ -545,7 +550,7 @@ void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel)
 	uint8_t i = 0;
 	for(i=0; i<SERVO_NUM; i++)  ulDxlParamBuf[i] = eReturnLevel;
 	
-	DXL_RegSyncWrite(ADDR_Status_Return_Lv, REG_1_BYTE, SERVO_NUM,\
+	DXL_RegSyncWrite(dxlREG_Status_Return_Lv, REG_1_BYTE, SERVO_NUM,\
 										ulDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
@@ -570,7 +575,7 @@ void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize)
     */
 void DXL_GetAllLedState(void)
 {
-	DXL_RegSyncRead(ADDR_LED, REG_1_BYTE, SERVO_NUM, ucDxlIdBuf);
+	DXL_RegSyncRead(dxlREG_LED, REG_1_BYTE, SERVO_NUM, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
