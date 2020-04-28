@@ -5,6 +5,7 @@ CORE
 FreeRTOS
 FWLIB
 OBJ
+System
 
 *.bat
 *.txt
