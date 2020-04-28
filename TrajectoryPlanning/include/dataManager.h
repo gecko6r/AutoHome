@@ -36,7 +36,6 @@ extern uint8_t ucServoTxBuffer[MAX_BUF_SIZE];
 
 extern uint8_t ucServoRxBuffer[MAX_BUF_SIZE];
 
-extern float ucServoTorqueBuffer[SERVO_NUM];
 
 
 

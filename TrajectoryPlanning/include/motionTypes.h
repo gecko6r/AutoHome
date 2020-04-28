@@ -13,25 +13,34 @@
 
 #include "sys.h"
 
+/* 机器人运动控制宏定义 ------------------------------------------------------*/
+#define PI		( ( double ) 3.1415926535898 ) 
 
 /* 机器人运动控制类型定义 ----------------------------------------------------*/
 /* 腿部三个舵机角度结构体*/
 typedef struct 
 {
-	float rootJoint;
-	float midJoint;
-	float endJoint;
+	double rootJoint;
+	double midJoint;
+	double endJoint;
+	double stringJoint;
 }LegAngleType;
 
 /* 三维点定义*/
 typedef struct
 {
-	float x;
-	float y;
-	float z;
+	double x;
+	double y;
+	double z;
 }Point3d;
 
-
+/* 躯干rpy角度定义*/
+typedef struct BodyPose
+{
+	double roll;
+	double pitch;
+	double yaw;
+}BodyPoseType;
 
 
 /* 机器人运动控制类型宏定义 ----------------------------------------------------*/

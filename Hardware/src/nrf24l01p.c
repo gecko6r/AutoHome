@@ -23,7 +23,7 @@
 				  |---------------|---------------|
 				  |      PC4      |      CE       |
 				  |---------------|---------------|
-				  |      PB0      |      IRQ      |
+				  |      PC5      |      IRQ      |
 				  |_______________|_______________|
   ----------------------------------------------------------------------------*/
   
@@ -46,11 +46,11 @@ static uint8_t nrfIT_Triggered = RESET;
 	* @param  	None
 	* @retval 	None
 	*/
-void Nrf_GPIO_Init(void)
+void Nrf_GPIO_Init( void )
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	
-	RCC_AHB1PeriphClockCmd(nrfRCC, ENABLE);
+	RCC_AHB1PeriphClockCmd( nrfRCC, ENABLE );
 	
 	/* 配置nrf24l01+模块CSN引脚 */
 	GPIO_InitStructure.GPIO_Pin 	= nrfIO_CSN_Pin;
@@ -58,7 +58,7 @@ void Nrf_GPIO_Init(void)
 	GPIO_InitStructure.GPIO_OType 	= GPIO_OType_PP;
 	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_NOPULL;
 	GPIO_InitStructure.GPIO_Speed 	= GPIO_Speed_50MHz;
-	GPIO_Init(nrfIO_CSN_GPIO, &GPIO_InitStructure);
+	GPIO_Init( nrfIO_CSN_GPIO, &GPIO_InitStructure );
 	
 	/* 配置nrf24l01+模块CE引脚 */
 	GPIO_InitStructure.GPIO_Pin 	= nrfIO_CE_Pin;
@@ -66,24 +66,18 @@ void Nrf_GPIO_Init(void)
 	GPIO_InitStructure.GPIO_OType 	= GPIO_OType_PP;
 	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
 	GPIO_InitStructure.GPIO_Speed 	= GPIO_Speed_50MHz;
-	GPIO_Init(nrfIO_CE_GPIO, &GPIO_InitStructure);
+	GPIO_Init( nrfIO_CE_GPIO, &GPIO_InitStructure );
 	
 	/* 配置nrf24l01+模块IRQ引脚 */
 	GPIO_InitStructure.GPIO_Pin 	= nrfIO_IRQ_Pin;
 	GPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_IN;
-	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
-	GPIO_Init(nrfIO_IRQ_GPIO, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_DOWN;
+	GPIO_Init( nrfIO_IRQ_GPIO, &GPIO_InitStructure );
 	
-	/* 配置PC5引脚，正常不需要配置 */
-	GPIO_InitStructure.GPIO_Pin 	= GPIO_Pin_5;
-	GPIO_InitStructure.GPIO_Mode 	= GPIO_Mode_IN;
-	GPIO_InitStructure.GPIO_PuPd 	= GPIO_PuPd_UP;
-	GPIO_Init(GPIOC, &GPIO_InitStructure);
-	
-	GPIO_SetBits(nrfIO_IRQ_GPIO, nrfIO_IRQ_Pin);
-	GPIO_SetBits(GPIOC, GPIO_Pin_5);
-	GPIO_SetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
-	GPIO_ResetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
+	GPIO_SetBits( nrfIO_IRQ_GPIO, nrfIO_IRQ_Pin );
+	GPIO_SetBits( GPIOC, GPIO_Pin_5 );
+	GPIO_SetBits( nrfIO_CSN_GPIO, nrfIO_CSN_Pin );
+	GPIO_ResetBits( nrfIO_CE_GPIO, nrfIO_CE_Pin );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -92,7 +86,7 @@ void Nrf_GPIO_Init(void)
 	* @param  	None
 	* @retval 	None
 	*/
-static void Nrf_IRQ_Init(void)
+static void Nrf_IRQ_Init( void )
 {
 	EXTI_InitTypeDef EXTI_InitStructure;
     NVIC_InitTypeDef NVIC_InitStructure;
@@ -102,15 +96,15 @@ static void Nrf_IRQ_Init(void)
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
+    EXTI_Init( &EXTI_InitStructure );
 
     /* Enable and set EXTI Interrupt to the highest priority */
     NVIC_InitStructure.NVIC_IRQChannel = nrfEXTI_Line;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 8;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-    EXTI_ClearITPendingBit(nrfEXTI_Line);
+    NVIC_Init( &NVIC_InitStructure );
+    EXTI_ClearITPendingBit( nrfEXTI_Line );
 
 }
 /* ---------------------------------------------------------------------------*/		
@@ -120,13 +114,13 @@ static void Nrf_IRQ_Init(void)
 	* @param  	None
 	* @retval 	None
 	*/
-void EXTI0_IRQHandler(void)
+void EXTI0_IRQHandler( void )
 {
-	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+	if( EXTI_GetITStatus( EXTI_Line0 ) != RESET )
 	{
-		printf("reveived\r\n");
+		printf( "reveived\r\n" );
 		
-		EXTI_ClearITPendingBit(EXTI_Line0);
+		EXTI_ClearITPendingBit( EXTI_Line0 );
 	}
 }
 /* ---------------------------------------------------------------------------*/		
@@ -136,9 +130,9 @@ void EXTI0_IRQHandler(void)
 	* @param  	None
 	* @retval 	None
 	*/
-void Nrf_SetCE_High(void)
+void Nrf_SetCE_High( void )
 {
-	GPIO_SetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
+	GPIO_SetBits( nrfIO_CE_GPIO, nrfIO_CE_Pin );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -147,9 +141,9 @@ void Nrf_SetCE_High(void)
 	* @param  	None
 	* @retval 	None
 	*/
-void Nrf_SetCE_Low(void)
+void Nrf_SetCE_Low( void )
 {
-	GPIO_ResetBits(nrfIO_CE_GPIO, nrfIO_CE_Pin);
+	GPIO_ResetBits( nrfIO_CE_GPIO, nrfIO_CE_Pin );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -158,9 +152,9 @@ void Nrf_SetCE_Low(void)
 	* @param  	None
 	* @retval 	None
 	*/
-void Nrf_SetCSN_High(void)
+void Nrf_SetCSN_High( void )
 {
-	GPIO_SetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
+	GPIO_SetBits( nrfIO_CSN_GPIO, nrfIO_CSN_Pin );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -169,9 +163,9 @@ void Nrf_SetCSN_High(void)
 	* @param  	None
 	* @retval 	None
 	*/
-void Nrf_SetCSN_Low(void)
+void Nrf_SetCSN_Low( void )
 {
-	GPIO_ResetBits(nrfIO_CSN_GPIO, nrfIO_CSN_Pin);
+	GPIO_ResetBits( nrfIO_CSN_GPIO, nrfIO_CSN_Pin );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -183,24 +177,24 @@ void Nrf_SetCSN_Low(void)
 	* @param  	pErr：存储错误信息的指针
 	* @retval 	nrf24l01+ 状态寄存器值
 	*/
-NrfStatus_t Nrf_RegSingleWrite(uint8_t ucRegAddr, uint8_t ucSrc, 
-									SpiErr_t* pErr)
+NrfStatus_t Nrf_RegSingleWrite( uint8_t ucRegAddr, uint8_t ucSrc, 
+									SpiErr_t* pErr )
 {
 	NrfStatus_t xNrfStatus = 0;
 	
-	Nrf_SetCE_Low();
-	Nrf_SetCSN_Low();
+	Nrf_SetCE_Low(  );
+	Nrf_SetCSN_Low(  );
 	
 	/*发送写寄存器操作和寄存器地址,nrf24l01+ status值*/
-	xNrfStatus = SPI_RW_1Byte(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);	
+	xNrfStatus = SPI_RW_1Byte( nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr );	
 	
 	/*发送新的寄存器值*/
-	SPI_RW_1Byte(nrfSPI, ucSrc, pErr);	
-	if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+	SPI_RW_1Byte( nrfSPI, ucSrc, pErr );	
+	if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 
 	
-	Nrf_SetCSN_High();
-	Nrf_SetCE_High();
+	Nrf_SetCSN_High(  );
+	Nrf_SetCE_High(  );
 	
 	return xNrfStatus;
 }
@@ -214,21 +208,21 @@ NrfStatus_t Nrf_RegSingleWrite(uint8_t ucRegAddr, uint8_t ucSrc,
 	* @param  	pErr：存储错误信息的指针
 	* @retval 	nrf24l01+ 状态寄存器值
 	*/
-NrfStatus_t Nrf_RegSingleRead(uint8_t ucRegAddr, uint8_t* pucDst, 
-									SpiErr_t* pErr)
+NrfStatus_t Nrf_RegSingleRead( uint8_t ucRegAddr, uint8_t* pucDst, 
+									SpiErr_t* pErr )
 {
 	NrfStatus_t xNrfStatus = 0;
 	
-	Nrf_SetCSN_Low();
+	Nrf_SetCSN_Low(  );
 	
 	/*发送读寄存器操作和寄存器地址，并读status*/
-	xNrfStatus = SPI_RW_1Byte(nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr);	
+	xNrfStatus = SPI_RW_1Byte( nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr );	
 	/*读取寄存器值*/
-	*pucDst = SPI_RW_1Byte(nrfSPI, 0x00, pErr);
+	*pucDst = SPI_RW_1Byte( nrfSPI, 0x00, pErr );
 
-	if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+	if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 
-	Nrf_SetCSN_High();
+	Nrf_SetCSN_High(  );
 	
 	return xNrfStatus;
 }
@@ -241,34 +235,34 @@ NrfStatus_t Nrf_RegSingleRead(uint8_t ucRegAddr, uint8_t* pucDst,
 	* @param  	ucSrcBuf：待写入的值数组
 	* @param  	ucLen：数组长度
 	* @param  	pErr：存储错误信息的指针
-	* @retval 	nrf24l01+ 状态寄存器值|(errBit<<7)，若有错误errBit为1， 
+	* @retval 	nrf24l01+ 状态寄存器值|( errBit<<7 )，若有错误errBit为1， 
 				无错误为0
 	*/
-NrfStatus_t Nrf_RegMultiWrite(uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
-									uint8_t ucLen, SpiErr_t* pErr)	
+NrfStatus_t Nrf_RegMultiWrite( uint8_t ucRegAddr, uint8_t* ucSrcBuf, 
+									uint8_t ucLen, SpiErr_t* pErr )	
 {
 	NrfStatus_t xNrfStatus = 0;
 	
-	Nrf_SetCE_Low();
-	Nrf_SetCSN_Low();
+	Nrf_SetCE_Low(  );
+	Nrf_SetCSN_Low(  );
 	
 	/*发送寄存器写操作和起始寄存器地址*/
-	SPI_RW_1Byte(nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr);
-	if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+	SPI_RW_1Byte( nrfSPI, nrfCMD_W_REG|ucRegAddr, pErr );
+	if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 	
 	/*读状态寄存器值*/
-	xNrfStatus = SPI_RW_1Byte(nrfSPI, 0x00, pErr);
-	if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+	xNrfStatus = SPI_RW_1Byte( nrfSPI, 0x00, pErr );
+	if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 	
 	/*发送寄存器值*/
-	while(ucLen--)
+	while( ucLen-- )
 	{
-		SPI_RW_1Byte(nrfSPI, *(ucSrcBuf++), pErr);
-		if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+		SPI_RW_1Byte( nrfSPI, *( ucSrcBuf++ ), pErr );
+		if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 	}
 	
-	Nrf_SetCSN_High();
-	Nrf_SetCE_High();
+	Nrf_SetCSN_High(  );
+	Nrf_SetCE_High(  );
 	
 	return xNrfStatus;
 }
@@ -281,28 +275,28 @@ NrfStatus_t Nrf_RegMultiWrite(uint8_t ucRegAddr, uint8_t* ucSrcBuf,
 	* @param  	ucDstBuf：寄存器值存放数组
 	* @param  	ucLen：数组长度
 	* @param  	pErr：存储错误信息的指针
-	* @retval 	nrf24l01+ 状态寄存器值|(errBit<<7)，若有错误errBit为1， 
+	* @retval 	nrf24l01+ 状态寄存器值|( errBit<<7 )，若有错误errBit为1， 
 				无错误为0
 	*/
-NrfStatus_t Nrf_RegMultiRead(uint8_t ucRegAddr, uint8_t* ucDstBuf, 
-									uint8_t ucLen, SpiErr_t* pErr)
+NrfStatus_t Nrf_RegMultiRead( uint8_t ucRegAddr, uint8_t* ucDstBuf, 
+									uint8_t ucLen, SpiErr_t* pErr )
 {
 	NrfStatus_t xNrfStatus = 0;
 	
-	Nrf_SetCSN_Low();
+	Nrf_SetCSN_Low(  );
 	
 	/*发送寄存器读操作和起始寄存器地址，并读状态寄存器值*/
-	xNrfStatus = SPI_RW_1Byte(nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr);
-	if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+	xNrfStatus = SPI_RW_1Byte( nrfSPI, nrfCMD_R_REG|ucRegAddr, pErr );
+	if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 	
 	/*接收寄存器值*/
-	while(ucLen--)
+	while( ucLen-- )
 	{
-		*(ucDstBuf++) = SPI_RW_1Byte(nrfSPI, 0x00, pErr);
-		if(*pErr != SPI_ERR_NoError) return xNrfStatus|(1<<7);
+		*( ucDstBuf++ ) = SPI_RW_1Byte( nrfSPI, 0x00, pErr );
+		if( *pErr != SPI_ERR_NoError ) return xNrfStatus|( 1<<7 );
 	}
 	
-	Nrf_SetCSN_High();
+	Nrf_SetCSN_High(  );
 	
 	return xNrfStatus;
 }
@@ -313,7 +307,7 @@ NrfStatus_t Nrf_RegMultiRead(uint8_t ucRegAddr, uint8_t* ucDstBuf,
 	* @param  	NrfInitStruct：nrf24l01+初始化结构体
 	* @retval 	nrf24l01+状态寄存器值
 	*/
-NrfStatus_t Nrf_Init(NRF_InitTypeDef* NrfInitStruct)
+NrfStatus_t Nrf_Init( void )
 {
 	uint8_t ucConfig = 0;
 	SpiErr_t xErr = SPI_ERR_NoError;
@@ -325,15 +319,15 @@ NrfStatus_t Nrf_Init(NRF_InitTypeDef* NrfInitStruct)
 	/*初始化nrf24l01+ SPI*/
 	SPI1_Init();
 	
-	ucConfig =   NrfInitStruct->NRF_Mask_RX_DR			|\
-				 NrfInitStruct->NRF_Mask_TX_DS			|\
-				 NrfInitStruct->NRF_Mask_MAX_RT			|\
-				 NrfInitStruct->NRF_EN_CRC				|\
-				 NrfInitStruct->NRF_CRC_Coding_Bytes	|\
-				 NrfInitStruct->NRF_PWR_Manage			|\
-				 NrfInitStruct->NRF_PRIM_RX;
+//	ucConfig =   NrfInitStruct->NRF_Mask_RX_DR			|\
+//				 NrfInitStruct->NRF_Mask_TX_DS			|\
+//				 NrfInitStruct->NRF_Mask_MAX_RT			|\
+//				 NrfInitStruct->NRF_EN_CRC				|\
+//				 NrfInitStruct->NRF_CRC_Coding_Bytes	|\
+//				 NrfInitStruct->NRF_PWR_Manage			|\
+//				 NrfInitStruct->NRF_PRIM_RX;
 	
-	xStatus = Nrf_RegSingleWrite(nrfREG_CONFIG, ucConfig, &xErr);
+	xStatus = Nrf_RegSingleWrite( nrfREG_CONFIG, ucConfig, &xErr );
 	
 	return xStatus;
 }
@@ -479,6 +473,17 @@ NrfStatus_t Nrf_SetRxADDR( const uint8_t* rxAddrBuf, uint8_t addrWidth)
 	* @retval 	nrf24l01+状态寄存器值
 	*/
 NrfStatus_t Nrf_SetTxADDR( const uint8_t* txAddrBuf, uint8_t addrWidth)
+{
+	
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	发送数据
+	* @param  	NrfInitStruct：nrf24l01+初始化结构体
+	* @retval 	nrf24l01+状态寄存器值
+	*/
+uint8_t Nrf_IT_Triggered(void)
 {
 	
 }

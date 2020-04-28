@@ -31,32 +31,21 @@
 #include "controller.h"
 
 /* Static Vaiables------------------------------------------------------------*/
-static uint8_t ucDxlIdBuf[SERVO_NUM] = {0U};
-static uint32_t ulDxlParamBuf[SERVO_NUM] = {0U};
+static uint8_t ucDxlIdBuf[ctrlSERVO_NUM] = {0U};
+static uint32_t uxDxlParamBuf[ctrlSERVO_NUM] = {0U};
 
 /* Global Vaiables------------------------------------------------------------*/
-float fServoStatusBuf[SERVO_STATUS_NUM][SERVO_NUM] = {0U};
+float fServoStatusBuf[SERVO_STATUS_NUM][ctrlSERVO_NUM] = {0U};
 ServoMsg xServoMsg;
 
 
 /* Constants------------------------------------------------------------------*/
 //DXL servo supported baudrates
-static const uint32_t ulDxlBaudrateBuf[8] = {9600, 57600, 115200,\
-											1000000, 2000000, 3000000,\
+static const uint32_t ulDxlBaudrateBuf[8] = {9600, 57600, 115200,
+											1000000, 2000000, 3000000,
 											4000000, 4500000};			
 
-//Set stall standing as initiate postion	
-static const float ServoPosOffset[18] = {
-	0, 0, -1024, 0, 0, 1024,
-	0, 0, -1024, 0, 0, 1024,
-	0, 0, -1024, 0, 0, 1024,
-};
 
-static const float ServoPosDir[18] = {
-	1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-	1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-	1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-};
 
 static const u16 DXL_CrcTable[256] = {
 	0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
@@ -101,6 +90,7 @@ static const char* cServoStatusMsgBuf[SERVO_STATUS_NUM] = {
 								"Present realtime tick: ",};
 /* ---------------------------------------------------------------------------*/
 
+static uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen);
 									   
 /* Dynamixel 相关函数定义-----------------------------------------------------*/		
 											   
@@ -115,7 +105,7 @@ void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
 	uint8_t i = 0;
 	
 	//初始化舵机id数组
-	for (i=0; i<SERVO_NUM; i++)
+	for (i=0; i<ctrlSERVO_NUM; i++)
 		ucDxlIdBuf[i] = i+1;
 	
 	//初始化舵机通讯数组包头
@@ -222,7 +212,6 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 	for(i=0; i<ucServoNum; i++) 
 	{
-
 		ucServoTxBuffer[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
 
 		for(j=0; j<usRegSize; j++)
@@ -268,9 +257,9 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucServoTxBuffer[eBYTE_ID]			= ucId;
-	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_ID]		= ucId;
+	ucServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
 	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Read;
 	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
 	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
@@ -319,9 +308,9 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
-	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_ID]		= ID_BROADCAST;
+	ucServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
+	ucServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
 	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Sync_Read;
 	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
 	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
@@ -480,15 +469,18 @@ uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg)
 	*/
 void DXL_SetAllBaudrate(EDxlBaudrate eBaudrate)
 {
-	uint32_t ulBaudrate;
 	u8 i = 0;
 	
-	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ulBaudrate;
-
 	DXL_SetAllTorque(DISABLE);
-	DXL_RegSyncWrite(dxlREG_Baudrate, REG_1_BYTE, SERVO_NUM, ulDxlParamBuf, ucDxlIdBuf);
-	USART2_Init(ulBaudrate);
+	delay_ms(1000);
 	
+	for (i=0; i<ctrlSERVO_NUM; i++) uxDxlParamBuf[i] = eBaudrate;
+	DXL_RegSyncWrite(dxlREG_Baudrate, REG_1_BYTE, ctrlSERVO_NUM,
+										uxDxlParamBuf, ucDxlIdBuf);
+	delay_ms(1000);
+	USART2_Init(ulDxlBaudrateBuf[eBaudrate]);
+	delay_ms(1000);
+	DXL_SetAllTorque(ENABLE);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -501,10 +493,10 @@ void DXL_SetAllTorque(FunctionalState fTorqueState)
 {
 	u8 i = 0;
 	
-	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ((fTorqueState == DISABLE) ? 0 : 1);
+	for (i=0; i<ctrlSERVO_NUM; i++) uxDxlParamBuf[i] = ((fTorqueState == DISABLE) ? 0 : 1);
 	
-	DXL_RegSyncWrite(dxlREG_Torque_Enable, REG_1_BYTE, SERVO_NUM,\
-										ulDxlParamBuf, ucDxlIdBuf);
+	DXL_RegSyncWrite(dxlREG_Torque_Enable, REG_1_BYTE, ctrlSERVO_NUM,\
+										uxDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -515,7 +507,7 @@ void DXL_SetAllTorque(FunctionalState fTorqueState)
     */
 void DXL_SetAllGoalPos(uint32_t* ulGoalPosBuf)
 {
-	DXL_RegSyncWrite(dxlREG_Goal_Position, REG_4_BYTE, SERVO_NUM,\
+	DXL_RegSyncWrite(dxlREG_Goal_Position, REG_4_BYTE, ctrlSERVO_NUM,\
 										ulGoalPosBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
@@ -529,9 +521,9 @@ void DXL_SetAllLedState(FunctionalState fLedState)
 {
 	u8 i = 0;
 	
-	for (i=0; i<SERVO_NUM; i++) ulDxlParamBuf[i] = ((fLedState == DISABLE) ? 0 : 1);
-	DXL_RegSyncWrite(dxlREG_LED, REG_1_BYTE, SERVO_NUM,\
-										ulDxlParamBuf, ucDxlIdBuf);
+	for (i=0; i<ctrlSERVO_NUM; i++) uxDxlParamBuf[i] = ((fLedState == DISABLE) ? 0 : 1);
+	DXL_RegSyncWrite(dxlREG_LED, REG_1_BYTE, ctrlSERVO_NUM,\
+										uxDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -543,10 +535,10 @@ void DXL_SetAllLedState(FunctionalState fLedState)
 void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel)
 {
 	uint8_t i = 0;
-	for(i=0; i<SERVO_NUM; i++)  ulDxlParamBuf[i] = eReturnLevel;
+	for(i=0; i<ctrlSERVO_NUM; i++)  uxDxlParamBuf[i] = eReturnLevel;
 	
-	DXL_RegSyncWrite(dxlREG_Status_Return_Lv, REG_1_BYTE, SERVO_NUM,\
-										ulDxlParamBuf, ucDxlIdBuf);
+	DXL_RegSyncWrite(dxlREG_Status_Return_Lv, REG_1_BYTE, ctrlSERVO_NUM,\
+										uxDxlParamBuf, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -570,7 +562,7 @@ void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize)
     */
 void DXL_GetAllLedState(void)
 {
-	DXL_RegSyncRead(dxlREG_LED, REG_1_BYTE, SERVO_NUM, ucDxlIdBuf);
+	DXL_RegSyncRead(dxlREG_LED, REG_1_BYTE, ctrlSERVO_NUM, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -683,7 +675,7 @@ static void DXL_PrintStatusBuf(void)
 	{
 		printf("%s", cServoStatusMsgBuf[ucStatusNum]);
 		
-		for(ucServoNum=0; ucServoNum<SERVO_NUM; ucServoNum++)	
+		for(ucServoNum=0; ucServoNum<ctrlSERVO_NUM; ucServoNum++)	
 			printf("%2d: %6.3f  ", ucStatusNum, fServoStatusBuf[ucStatusNum][ucServoNum]);
 		
 		printf("\r\n");

@@ -19,8 +19,7 @@ uint8_t* pServoTx = ucServoTxBuffer;
 uint8_t ucServoRxBuffer[MAX_BUF_SIZE];
 uint8_t* pServoRx = ucServoRxBuffer;
 
-float ucServoTorqueBuffer[SERVO_NUM];
-float* pServoTorque = ucServoTorqueBuffer;
+
 
 
 /* ---------------------------------------------------------------------------*/		

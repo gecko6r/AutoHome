@@ -32,7 +32,7 @@ typedef enum SPI_Err_Type{
 
 /* SPI收发函数定义------------------------------------------------------------*/
 void SPI1_Init(void);
-uint8_t SPI_RW_1Byte(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErr_t* pSpiErr)
+uint8_t SPI_RW_1Byte(SPI_TypeDef* SPIx, uint8_t ucSrc, SpiErr_t* pSpiErr);
 
 
 #endif

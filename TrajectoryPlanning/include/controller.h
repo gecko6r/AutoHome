@@ -4,7 +4,8 @@
   * @author  Xiong
   * @version V0.3
   * @date    16-July-2020
-  * @brief   此文件用于定义机器人运动控制的相关类型和结构
+  * @brief   此文件用于定义机器人运动控制的相关类型和结构，所有函数的参数和返回
+  *			 中的角度单位都是°，距离或长度单位都是mm
   ******************************************************************************  
   */ 
 #ifndef _CONTROLLER_H
@@ -36,21 +37,33 @@ typedef enum
 #define HEXAPOD_ROBOT
 */
 
-#ifdef GECKO_ROBOT
-#define SERVO_NUM				( ( uint8_t ) 16 )
-#define JOINTS_PER_LEG			( ( uint8_t ) 3 )
+#ifdef  GECKO_ROBOT
+#define ctrlSERVO_NUM				( ( uint8_t ) 16 )
+#define ctrlJOINTS_PER_LEG			( ( uint8_t ) 4 )
+#define ctrlLEG_COUNT				( ( uint8_t ) 4 )
+#define ctrlJOINT1_UP_LIMIT			( ( float ) 95 )
+#define ctrlJOINT1_LOW_LIMIT		( ( float ) -95 )
 #elif defined HEXAPOD_ROBOT
-#define SERVO_NUM				( ( uint8_t ) 18 )
-#define JOINTS_PER_LEG			( ( uint8_t ) 3 )
+#define ctrlSERVO_NUM				( ( uint8_t ) 18 )
+#define ctrlJOINTS_PER_LEG			( ( uint8_t ) 3 )
+#define ctrlLEG_COUNT				( ( uint8_t ) 6 )
 #endif
 
 /* 机器人运动控制全局变量声明 ------------------------------------------------*/
+extern uint32_t uxServoPosBuf[ctrlSERVO_NUM];
 
-
-/* 机器人运动控制函数定义 ----------------------------------------------------*/
-uint8_t CTRL_WriteTipPosToBuffer( TipPosType* xTipPosBuf, uint8_t ucTipCount);
+/* 机器人运动控制全局函数定义 ------------------------------------------------*/
+uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf);
 uint8_t CTRL_Action(void);
 uint8_t CTRL_ActionAfter_ms(uint16_t usNms);
+
+void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT], 
+						  LegAngleType* xDstBuf);
+LegAngleType CTRL_SingleLegIK( TipPosType xPoint );
+void CTRL_LegAngTypeToDouble( LegAngleType* xBuf, uint8_t ucCount, 
+							  double* dDstBuf );
+void CTRL_DoubleToPos( double* dSrcBuf, uint8_t ucCount, uint32_t* uxDstBuf );
+/* 机器人运动控制局部函数定义 ------------------------------------------------*/
 
 
 #endif

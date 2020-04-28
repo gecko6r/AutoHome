@@ -16,6 +16,7 @@
 #define nrfSPI						( ( SPI_TypeDef * ) SPI1 )
 
 /* nrf24l01+ 类型宏定义	------------------------------------------------------*/
+typedef unsigned char NrfStatusType;
 #define NrfStatus_t 				NrfStatusType
 
 /* nrf24l01+模块时钟和GPIO、EXTI宏定义	--------------------------------------*/
@@ -24,10 +25,10 @@
 												   RCC_AHB1Periph_GPIOC )
 #define nrfIO_CSN_GPIO				( ( GPIO_TypeDef* ) GPIOA )
 #define nrfIO_CE_GPIO				( ( GPIO_TypeDef* ) GPIOC )
-#define nrfIO_IRQ_GPIO				( ( GPIO_TypeDef* ) GPIOB )
+#define nrfIO_IRQ_GPIO				( ( GPIO_TypeDef* ) GPIOC )
 #define nrfIO_CSN_Pin				( ( uint16_t ) GPIO_Pin_4 )
 #define nrfIO_CE_Pin				( ( uint16_t ) GPIO_Pin_4 )
-#define nrfIO_IRQ_Pin				( ( uint16_t ) GPIO_Pin_0 )
+#define nrfIO_IRQ_Pin				( ( uint16_t ) GPIO_Pin_5 )
 #define nrfEXTI_Line				( ( uint32_t ) EXTI_Line0 )
 
 /* nrf24l01+ 命令宏定义 ------------------------------------------------------*/
@@ -73,7 +74,7 @@
 
 
 /* nrf24l01+ 类型定义 --------------------------------------------------------*/
-typedef unsigned char NrfStatusType;
+
 
 /* RX_DR引起中断使能 */
 typedef enum
@@ -203,7 +204,7 @@ NrfStatus_t Nrf_RegMultiRead( uint8_t ucRegAddr, uint8_t* ucDstBuf,
 									uint8_t ucLen, SpiErr_t* pErr );
 
 /* nrf24l01+ 操作函数定义 ----------------------------------------------------*/
-NrfStatus_t Nrf_Init( NRF_InitTypeDef* NrfInitStruct );
+NrfStatus_t Nrf_Init( void );
 NrfStatus_t Nrf_TxData( uint8_t* ucSrcBuf, uint8_t ucLen );
 NrfStatus_t Nrf_RxData( uint8_t* usDstBuf, uint8_t ucLen );
 

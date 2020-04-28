@@ -1,5 +1,8 @@
 #ifndef __SYS_H
 #define __SYS_H	 
+
+#include "stdbool.h"
+
 #include "stm32f4xx.h" 
 
 #include "FreeRTOS.h"
@@ -11,6 +14,7 @@
 #define MAX_BUF_SIZE			((uint16_t) 255)		//Maximum size(bytes) of buffer
 #define HALF_BUF_SIZE			((uint16_t) 127)		//Half maximum size(bytes) of buffer
 #define QUATER_BUF_SIZE			((uint16_t) 63)			//Quater maximum size(bytes) of buffer
+
 /* Private macro -------------------------------------------------------------*/
 
 #define SYSTEM_SUPPORT_OS		1		//
