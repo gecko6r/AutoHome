@@ -99,14 +99,8 @@ uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf )
 	
 	CTRL_InverseKinemix( xTipPosBuf, xLegAngleBuf );
 	
-//	for( i=0; i<ctrlLEG_COUNT; i++ )
-//	printf("%3.3f, %3.3f, %3.3f, ", xLegAngleBuf[i].rootJoint, xLegAngleBuf[i].midJoint, xLegAngleBuf[i].endJoint);
-//	printf("\r\n\r\n");
-	
 	CTRL_LegAngTypeToDouble( xLegAngleBuf, ctrlLEG_COUNT, dAngleBuf );
-//	for( i=0; i<ctrlSERVO_NUM; i++ )
-//	printf("%3.3f, %3.3f, %3.3f, ", xLegAngleBuf[i].rootJoint, xLegAngleBuf[i].midJoint, xLegAngleBuf[i].endJoint);
-//	printf("\r\n\r\n");
+
 	CTRL_DoubleToPos( dAngleBuf, ctrlSERVO_NUM, uxServoPosBuf );
 	
 	return 0;
