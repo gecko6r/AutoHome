@@ -1,4 +1,4 @@
-#include "stdio.h"
+
 #include "stm32f4xx_conf.h"
 
 
@@ -23,6 +23,11 @@ struct __FILE
 
 FILE __stdout;       
 // 
+_ttywrch( int ch )
+{
+	ch = ch;
+}
+
 void _sys_exit(int x) 
 { 
 	x = x; 
@@ -34,6 +39,7 @@ int fputc(int ch, FILE *f)
 	USART1->DR = (u8) ch;      
 	return ch;
 }
+//
 /* ---------------------------------------------------------------------------*/
 
 /****
