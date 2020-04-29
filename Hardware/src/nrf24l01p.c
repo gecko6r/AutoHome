@@ -384,7 +384,7 @@ NrfStatus_t Nrf_RxData( uint8_t* usDstBuf, uint8_t ucLen )
 	* @param  	NrfInitStruct：nrf24l01+初始化结构体
 	* @retval 	nrf24l01+状态寄存器值
 	*/
-NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe xPipe, FunctionalState fState )
+NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe_t xPipe, FunctionalState fState )
 {
 	
 }
@@ -395,7 +395,7 @@ NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe xPipe, FunctionalState fState )
 	* @param  	NrfInitStruct：nrf24l01+初始化结构体
 	* @retval 	nrf24l01+状态寄存器值
 	*/
-NrfStatus_t Nrf_SetRxAddrState( NRF_Data_Pipe xPipe, FunctionalState fState )
+NrfStatus_t Nrf_SetRxAddrState( NRF_Data_Pipe_t xPipe, FunctionalState fState )
 {
 	
 }
@@ -450,7 +450,7 @@ NrfStatus_t Nrf_SetRF_Chn( uint8_t RF_Channel, uint8_t RF_param )
 	* @param  	NrfInitStruct：nrf24l01+初始化结构体
 	* @retval 	nrf24l01+状态寄存器值
 	*/
-NrfStatus_t Nrf_SetADDR_Width( NRF_ADDR_Width xWidth)
+NrfStatus_t Nrf_SetADDR_Width( NRF_ADDR_Width_t xWidth )
 {
 	
 }

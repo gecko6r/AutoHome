@@ -81,49 +81,49 @@ typedef enum
 {
 	NRF_Mask_RX_DR_Enable 		= 0x00,	/*!<*/
 	NRF_Mask_RX_DR_Dsiable		= 0x40,
-}_NRF_Mask_RX_DR;
+}NRF_Mask_RX_DR_t;
 
 /* TX_DS引起中断使能 */
 typedef enum
 {
 	NRF_Mask_TX_DS_Enable		= 0x00,
 	NRF_Mask_TX_DS_Disable		= 0x20,
-}_NRF_Mask_TX_DS;
+}NRF_Mask_TX_DS_t;
 
 /* MAX_RT引起中断使能 */
 typedef enum
 {
 	NRF_Mask_MAX_RT_Enable		= 0x00,
 	NRF_Mask_MAX_RT_Disable		= 0x10,
-}_NRF_Mask_MAX_RT;
+}NRF_Mask_MAX_RT_t;
 
 /* CRC使能 */
 typedef enum
 {
 	NRF_CRC_Disable				= 0x00,
 	NRF_CRC_Enable				= 0x08,
-}_NRF_EN_CRC;
+}NRF_EN_CRC_t;
 
 /* CRC编码字节数 */
 typedef enum 
 {
 	NRF_CRC_Coding_1_Byte		= 0x00,
 	NRF_CRC_Coding_2_Bytes		= 0x04,
-}_NRF_CRC_Coding_Bytes;
+}NRF_CRC_Coding_Bytes_t;
 
 /* 电源使能 */
 typedef enum
 {
 	NRF_Power_Down				= 0x00,
 	NRF_Power_Up				= 0x02,
-}_NRF_PWR_Manage;
+}NRF_PWR_Manage_t;
 
 /* PRIM_RX */
 typedef enum
 {
 	NRF_PRIM_PTX				= 0x00,
 	NRF_PRIM_PRX				= 0x01,
-}_NRF_PRIM_RX;
+}NRF_PRIM_RX_t;
 
 /* 数据管道枚举定义 */
 typedef enum
@@ -134,7 +134,7 @@ typedef enum
 	NRF_Data_Pipe_3				= 0x04,
 	NRF_Data_Pipe_4				= 0x08,
 	NRF_Data_Pipe_5				= 0x10,
-}NRF_Data_Pipe;
+}NRF_Data_Pipe_t;
 
 /* 地址宽度定义 */
 typedef enum
@@ -142,14 +142,14 @@ typedef enum
 	NRF_ADDR_Width_3_Bytes		= 0x01,
 	NRF_ADDR_Width_4_Bytes		= 0x02,
 	NRF_ADDR_Width_5_Bytes		= 0x03,
-}NRF_ADDR_Width;
+}NRF_ADDR_Width_t;
 
 /* 自动重发延时定义 */
 typedef enum 
 {
 	NRF_ARD_250us				= 0x00,
 	
-}NRF_Auto_Retransmit_Delay;
+}NRF_Auto_Retransmit_Delay_t;
 
 /* 自动重发次数定义 */
 typedef enum 
@@ -157,7 +157,7 @@ typedef enum
 	NRF_ARC_Diable				= 0x00,
 	NRF_ARC_1					= 0x01,
 	
-}NRF_Auto_Retransmit_Count;
+}NRF_Auto_Retransmit_Count_t;
 	
 /*nrf24l01+ 自动重发结构体类型*/
 typedef enum
@@ -168,22 +168,22 @@ typedef enum
 /*nrf24l01+ 初始化结构体类型*/
 typedef struct NrfInitStruct
 {
-	_NRF_Mask_RX_DR 			NRF_Mask_RX_DR;
-	_NRF_Mask_TX_DS 			NRF_Mask_TX_DS;
-	_NRF_Mask_MAX_RT 			NRF_Mask_MAX_RT;
-	_NRF_EN_CRC 				NRF_EN_CRC;
-	_NRF_CRC_Coding_Bytes 		NRF_CRC_Coding_Bytes;
-	_NRF_PWR_Manage 			NRF_PWR_Manage;
-	_NRF_PRIM_RX				NRF_PRIM_RX;
+	NRF_Mask_RX_DR_t 			NRF_Mask_RX_DR;
+	NRF_Mask_TX_DS_t 			NRF_Mask_TX_DS;
+	NRF_Mask_MAX_RT_t 			NRF_Mask_MAX_RT;
+	NRF_EN_CRC_t 				NRF_EN_CRC;
+	NRF_CRC_Coding_Bytes_t 		NRF_CRC_Coding_Bytes;
+	NRF_PWR_Manage_t 			NRF_PWR_Manage;
+	NRF_PRIM_RX_t			NRF_PRIM_RX;
 	
 }NRF_InitTypeDef;
 
 /*nrf24l01+ 自动重发结构体类型*/
 typedef struct NrfAutoReTxStruct
 {
-	NRF_Auto_Retransmit_Delay Nrf_ARD_us;
-	NRF_Auto_Retransmit_Count Nrf_ARC;
-}NrfAutoReTxTypeDef;
+	NRF_Auto_Retransmit_Delay_t Nrf_ARD_us;
+	NRF_Auto_Retransmit_Count_t Nrf_ARC;
+}NrfAutoReTx_t;
 
 /* nrf24l01+ 全局变量定义 ----------------------------------------------*/
 /*设定nrf24l01+模块的发送目标地址*/
@@ -209,11 +209,11 @@ NrfStatus_t Nrf_TxData( uint8_t* ucSrcBuf, uint8_t ucLen );
 NrfStatus_t Nrf_RxData( uint8_t* usDstBuf, uint8_t ucLen );
 
 /* nrf24l01+ 参数设定函数定义 ------------------------------------------------*/
-NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe xPipe, FunctionalState fState );
-NrfStatus_t Nrf_SetRxAddrState( NRF_Data_Pipe xPipe, FunctionalState fState );
+NrfStatus_t Nrf_SetAutoAckState( NRF_Data_Pipe_t xPipe, FunctionalState fState );
+NrfStatus_t Nrf_SetRxAddrState( NRF_Data_Pipe_t xPipe, FunctionalState fState );
 NrfStatus_t Nrf_SetPowerState( FunctionalState fState );
 NrfStatus_t Nrf_SetMode( NRF_Mode_t xTxRxMode );
-NrfStatus_t Nrf_SetADDR_Width( NRF_ADDR_Width xWidth);
+NrfStatus_t Nrf_SetADDR_Width( NRF_ADDR_Width_t xWidth);
 NrfStatus_t Nrf_SetAutoRetr( uint8_t RETR_Status );
 NrfStatus_t Nrf_SetRF( uint8_t RF_Channel, uint8_t RF_param );
 NrfStatus_t Nrf_SetRxADDR( const uint8_t* rxAddrBuf, uint8_t addrWidth);

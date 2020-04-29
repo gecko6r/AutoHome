@@ -24,7 +24,7 @@ typedef struct
 	double midJoint;
 	double endJoint;
 	double stringJoint;
-}LegAngleType;
+}LegAngle_t;
 
 /* 三维点定义*/
 typedef struct
@@ -40,7 +40,7 @@ typedef struct BodyPose
 	double roll;
 	double pitch;
 	double yaw;
-}BodyPoseType;
+}BodyPose_t;
 
 
 /* 机器人运动控制类型宏定义 ----------------------------------------------------*/

@@ -92,15 +92,14 @@ static const uint32_t ServoMaxPos = 4096;
 uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf )
 {
 	uint8_t i=0;
-	LegAngleType xLegAngleBuf[ctrlLEG_COUNT];
+	LegAngle_t xLegAngleBuf[ctrlLEG_COUNT];
 	double dAngleBuf[ctrlSERVO_NUM];
 	
-
-	
+	/* 计算每条腿的运动学逆解 */
 	CTRL_InverseKinemix( xTipPosBuf, xLegAngleBuf );
-	
+	/* 将关节角度结构体转储到浮点型数组中 */
 	CTRL_LegAngTypeToDouble( xLegAngleBuf, ctrlLEG_COUNT, dAngleBuf );
-
+	/* 根据每个关节的安装方向和中心位置，计算每个舵机的实际位置(0-360°->0-4096)*/
 	CTRL_DoubleToPos( dAngleBuf, ctrlSERVO_NUM, uxServoPosBuf );
 	
 	return 0;
@@ -114,10 +113,10 @@ uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf )
 	* @retval 	关节角度数组，（角度制）
 	*/
 void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT], 
-						  LegAngleType* xDstBuf)
+						  LegAngle_t* xDstBuf)
 {
 	uint8_t i = 0;
-	LegAngleType xBuf[ctrlLEG_COUNT];
+	LegAngle_t xBuf[ctrlLEG_COUNT];
 	Point3d xTmp;
 	for( i=0; i<ctrlLEG_COUNT; i++ )
 	{
@@ -142,7 +141,7 @@ void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT],
 	*			单位mm）
 	* @retval 	返回单腿三个关节的角度值（角度制）
 	*/
-LegAngleType CTRL_SingleLegIK( TipPosType xPoint )
+LegAngle_t CTRL_SingleLegIK( TipPosType xPoint )
 {
 
 	
@@ -150,7 +149,7 @@ LegAngleType CTRL_SingleLegIK( TipPosType xPoint )
 	float y = xPoint.y - fJoint0_y;
 	float z = xPoint.z;
 	
-	LegAngleType xAngle;
+	LegAngle_t xAngle;
 	
 	/* 运动学逆解计算 */
 	float t3 = asin((-x*x - y*y - z*z - l1*l1 + 2.0*l1*sqrt(x*x+z*z-l5*l5) + l2*l2
@@ -181,7 +180,7 @@ LegAngleType CTRL_SingleLegIK( TipPosType xPoint )
 	* @param	dDstBuf：目标存储数组
 	* @retval 	无
 	*/
-void CTRL_LegAngTypeToDouble( LegAngleType* xBuf, uint8_t ucCount, 
+void CTRL_LegAngTypeToDouble( LegAngle_t* xBuf, uint8_t ucCount, 
 							  double* dDstBuf )
 {
 	uint8_t i = 0;
@@ -209,5 +208,25 @@ void CTRL_DoubleToPos( double* dSrcBuf, uint8_t ucCount, uint32_t* uxDstBuf )
 	for( i=0; i<ucCount; i++ ) 
 		uxDstBuf[i] = ServoPosDir[i] * dSrcBuf[i] * ServoMaxPos / 360.0
 						+ ServoPosOffset[i];
+	
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	通过当前身体的RPY、身体中心位置和足端位置，计算运动学逆解，坐标
+				系一律为接触表面坐标系。函数的计算过程是：在接触表面坐标系下，通
+				过身体的中心以及身体的欧拉角计算出每条腿部根关节的位置，用对应足
+				端位置减去每条腿根部关节的位置就可以得到足端相对于腿根部关节的位
+				置，即前面CTRL_InverseKinemix的参数，计算此参数得到关节角度。
+	* @param  	xBodyPose:机器人身体的欧拉角（角度制）
+	* @param	xBodyCenter：身体中心位置（接触表面坐标系）
+	* @param	xTipGroundPos：足端位置（接触表面坐标系）
+	* @param	xLegAngleBuf： 保存计算结果的数组
+	* @retval 	无
+	*/
+void CTRL_PoseBasedIK( BodyPose_t xBodyPose, Point3d xBodyCenter, 
+					   Point3d* xTipGroundPos , LegAngle_t* xLegAngleBuf)
+{
+	
 	
 }

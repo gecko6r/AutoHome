@@ -22,7 +22,7 @@ typedef enum
 	Continues_Mode,
 	/*单点模式*/
 	Single_Point_Mode,
-}ControlModeType;
+}ControlMode_t;
 
 /* 机器人类型定义*/
 typedef enum
@@ -57,12 +57,18 @@ uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf);
 uint8_t CTRL_Action(void);
 uint8_t CTRL_ActionAfter_ms(uint16_t usNms);
 
+/* 运动学逆解函数定义 */
 void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT], 
-						  LegAngleType* xDstBuf);
-LegAngleType CTRL_SingleLegIK( TipPosType xPoint );
-void CTRL_LegAngTypeToDouble( LegAngleType* xBuf, uint8_t ucCount, 
+						  LegAngle_t* xDstBuf);
+LegAngle_t CTRL_SingleLegIK( TipPosType xPoint );
+void CTRL_LegAngTypeToDouble( LegAngle_t* xBuf, uint8_t ucCount, 
 							  double* dDstBuf );
 void CTRL_DoubleToPos( double* dSrcBuf, uint8_t ucCount, uint32_t* uxDstBuf );
+
+void CTRL_PoseBasedIK( BodyPose_t xBodyPose, Point3d xBodyCenter, 
+					   Point3d* xTipGroundPos , LegAngle_t* xLegAngleBuf);
+
+
 /* 机器人运动控制局部函数定义 ------------------------------------------------*/
 
 
