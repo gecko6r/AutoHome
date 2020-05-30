@@ -44,6 +44,6 @@ typedef struct BodyPose
 
 
 /* 机器人运动控制类型宏定义 ----------------------------------------------------*/
-#define TipPosType			Point3d
+#define TipPos_t			Point3d
 
 #endif

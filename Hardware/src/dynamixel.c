@@ -20,77 +20,76 @@
   | 0xFF  | 0xFF  | 0xFD  |  0x00  |   ID   | Len_L | Len_H |Instrucion |Param1|...  |ParamN|CRC_L|CRC_H|
   |_____________________________________________________________________|___________________|___________|
   -----------------------------------------------------------------------------------------------------*/
- 
-#include "stdio.h"
+  
 
+ 
+#include <stdio.h>
+#include <stdlib.h>
+
+
+
+#include "controller.h"
 #include "dynamixel.h"
 #include "delay.h"
 #include "led.h"
 #include "usart.h"
 #include "dma.h"
-#include "controller.h"
 
-/* Static Vaiables------------------------------------------------------------*/
-static uint8_t ucDxlIdBuf[ctrlSERVO_NUM] = {0U};
-static uint32_t uxDxlParamBuf[ctrlSERVO_NUM] = {0U};
 
-/* Global Vaiables------------------------------------------------------------*/
-float fServoStatusBuf[SERVO_STATUS_NUM][ctrlSERVO_NUM] = {0U};
+
+/*--------------------------------全局变量----------------------------------- */
+//舵机发送缓冲区
+uint8_t g_ucaServoTxBuffer[HALF_BUF_SIZE];
+
+//舵机接收缓冲区
+uint8_t g_ucaServoRxBuffer[HALF_BUF_SIZE];
+
+//舵机状态数组
+double dServoStatusBuf[ dxlStatusCount ][ ctrlSERVO_NUM ];
+
+//舵机消息控制
 ServoMsg xServoMsg;
 
+/*--------------------------------局部变量----------------------------------- */
+//存储舵机ID
+static uint8_t ucDxlIdBuf[ctrlSERVO_NUM] = {0U};
 
-/* Constants------------------------------------------------------------------*/
+//存储发送给舵机的参数
+static uint32_t uxDxlParamBuf[ctrlSERVO_NUM] = {0U};
+
+//存储舵机位置
+static uint32_t s_ulaServoPosBuf[ ctrlSERVO_NUM ];
+
+//存储舵机电流（力矩）
+static uint16_t s_usaServoCurrentBuf[ ctrlSERVO_NUM ];
+
+//存储舵机速度
+static uint32_t s_ulaServoVelBuf[ ctrlSERVO_NUM ];
+
+//存储舵机电压
+static uint16_t s_usServoVolt;
+
+//在线舵机数量
+static uint8_t s_ucOnlineServoCount = ctrlSERVO_NUM;
+
+//舵机初始化完毕？
+static bool s_bServoInitFinished = false;
+
+
+
+/*-----------------------------------常量-------------------------------------*/
 //DXL servo supported baudrates
-static const uint32_t ulDxlBaudrateBuf[8] = {9600, 57600, 115200,
-											1000000, 2000000, 3000000,
-											4000000, 4500000};			
+static const uint32_t ulDxlBaudrateBuf[8] = { 9600, 57600, 115200,
+											  1000000, 2000000, 3000000,
+											  4000000, 4500000};			
 
-
-
-static const u16 DXL_CrcTable[256] = {
-	0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
-	0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027, 0x0022,
-	0x8063, 0x0066, 0x006C, 0x8069, 0x0078, 0x807D, 0x8077, 0x0072,
-	0x0050, 0x8055, 0x805F, 0x005A, 0x804B, 0x004E, 0x0044, 0x8041,
-	0x80C3, 0x00C6, 0x00CC, 0x80C9, 0x00D8, 0x80DD, 0x80D7, 0x00D2,
-	0x00F0, 0x80F5, 0x80FF, 0x00FA, 0x80EB, 0x00EE, 0x00E4, 0x80E1,
-	0x00A0, 0x80A5, 0x80AF, 0x00AA, 0x80BB, 0x00BE, 0x00B4, 0x80B1,
-	0x8093, 0x0096, 0x009C, 0x8099, 0x0088, 0x808D, 0x8087, 0x0082,
-	0x8183, 0x0186, 0x018C, 0x8189, 0x0198, 0x819D, 0x8197, 0x0192,
-	0x01B0, 0x81B5, 0x81BF, 0x01BA, 0x81AB, 0x01AE, 0x01A4, 0x81A1,
-	0x01E0, 0x81E5, 0x81EF, 0x01EA, 0x81FB, 0x01FE, 0x01F4, 0x81F1,
-	0x81D3, 0x01D6, 0x01DC, 0x81D9, 0x01C8, 0x81CD, 0x81C7, 0x01C2,
-	0x0140, 0x8145, 0x814F, 0x014A, 0x815B, 0x015E, 0x0154, 0x8151,
-	0x8173, 0x0176, 0x017C, 0x8179, 0x0168, 0x816D, 0x8167, 0x0162,
-	0x8123, 0x0126, 0x012C, 0x8129, 0x0138, 0x813D, 0x8137, 0x0132,
-	0x0110, 0x8115, 0x811F, 0x011A, 0x810B, 0x010E, 0x0104, 0x8101,
-	0x8303, 0x0306, 0x030C, 0x8309, 0x0318, 0x831D, 0x8317, 0x0312,
-	0x0330, 0x8335, 0x833F, 0x033A, 0x832B, 0x032E, 0x0324, 0x8321,
-	0x0360, 0x8365, 0x836F, 0x036A, 0x837B, 0x037E, 0x0374, 0x8371,
-	0x8353, 0x0356, 0x035C, 0x8359, 0x0348, 0x834D, 0x8347, 0x0342,
-	0x03C0, 0x83C5, 0x83CF, 0x03CA, 0x83DB, 0x03DE, 0x03D4, 0x83D1,
-	0x83F3, 0x03F6, 0x03FC, 0x83F9, 0x03E8, 0x83ED, 0x83E7, 0x03E2,
-	0x83A3, 0x03A6, 0x03AC, 0x83A9, 0x03B8, 0x83BD, 0x83B7, 0x03B2,
-	0x0390, 0x8395, 0x839F, 0x039A, 0x838B, 0x038E, 0x0384, 0x8381,
-	0x0280, 0x8285, 0x828F, 0x028A, 0x829B, 0x029E, 0x0294, 0x8291,
-	0x82B3, 0x02B6, 0x02BC, 0x82B9, 0x02A8, 0x82AD, 0x82A7, 0x02A2,
-	0x82E3, 0x02E6, 0x02EC, 0x82E9, 0x02F8, 0x82FD, 0x82F7, 0x02F2,
-	0x02D0, 0x82D5, 0x82DF, 0x02DA, 0x82CB, 0x02CE, 0x02C4, 0x82C1,
-	0x8243, 0x0246, 0x024C, 0x8249, 0x0258, 0x825D, 0x8257, 0x0252,
-	0x0270, 0x8275, 0x827F, 0x027A, 0x826B, 0x026E, 0x0264, 0x8261,
-	0x0220, 0x8225, 0x822F, 0x022A, 0x823B, 0x023E, 0x0234, 0x8231,
-	0x8213, 0x0216, 0x021C, 0x8219, 0x0208, 0x820D, 0x8207, 0x0202
-};
-
-static const char* cServoStatusMsgBuf[SERVO_STATUS_NUM] = {		
-								"Present position:      ",
-								"Present voltage:       ",
-								"Present current:       ",
-								"Present velocity:      ",
-								"Present realtime tick: ",};
-/* ---------------------------------------------------------------------------*/
-
-static uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen);
+static const char* cServoStatusMsgBuf[ dxlStatusCount ] = {		
+								"Present position: ",
+								"Present voltage:  ",
+								"Present current:  ",
+								"Present velocity: ",
+								"Present tick:     ", };
+/*********************************变量定义结束*********************************/
 									   
 /* Dynamixel 相关函数定义-----------------------------------------------------*/		
 											   
@@ -109,20 +108,25 @@ void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
 		ucDxlIdBuf[i] = i+1;
 	
 	//初始化舵机通讯数组包头
-	ucServoTxBuffer[eBYTE_HEADER_1]	= 0xff;
-	ucServoTxBuffer[eBYTE_HEADER_2]	= 0xff;
-	ucServoTxBuffer[eBYTE_HRADER_3]	= 0xfd;
-	ucServoTxBuffer[eBYTE_RESV]		= 0x00;
+	g_ucaServoTxBuffer[eBYTE_HEADER_1]	= 0xff;
+	g_ucaServoTxBuffer[eBYTE_HEADER_2]	= 0xff;
+	g_ucaServoTxBuffer[eBYTE_HRADER_3]	= 0xfd;
+	g_ucaServoTxBuffer[eBYTE_RESV]		= 0x00;
+	
+	//初始化电平转换芯片方向控制引脚
 	
 	//初始化串口及dma
-	USART2_Init(ulDxlBaudrateBuf[eBaudrate]);
-	DMA_Usart2_Tx_Init();
-	DMA_Usart2_Rx_Init();
+	USART1_Init(ulDxlBaudrateBuf[eBaudrate]);
+	DMA_ServoTxInit( dmaServoTxPeriphAddr, ( uint32_t )g_ucaServoTxBuffer, MAX_BUF_SIZE );
+//	DMA_ServoRxInit( dmaServoRxPeriphAddr, ( uint32_t )g_ucaServoRxBuffer, MAX_BUF_SIZE );
+	USART_DirIO_Init();
 	
 	//设定舵机力矩
-	DXL_SetAllTorque(fTorqueState);
+	if( fTorqueState )
+		DXL_SetAllTorque(fTorqueState);
 	
-	xServoMsg = xCreateMsg(ucServoRxBuffer);
+	xServoMsg = xCreateMsg(g_ucaServoRxBuffer);
+
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -145,35 +149,35 @@ void DXL_RegWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	/* 数据包总长：包体长度 + 剩余长度*/
 	uint16_t usPacketSize = usPacketLen + PACKET_LEFT_LEN;
 	
-	uint16_t usDxlCrcCheck = 0U;
+	uint16_t usDxlCrcCheck;
 
-	ucServoTxBuffer[eBYTE_ID]			= ucId;
-	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_INST]			= dxlINST_REG_Write;
-	ucServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[eBYTE_ID]			= ucId;
+	g_ucaServoTxBuffer[eBYTE_LEN_L]			= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]			= HIGH_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_INST]			= dxlINST_Write;
+	g_ucaServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
 
 	
-	for(i=0; i<usRegSize; i++) ucServoTxBuffer[4+i] = nthByteOf(ulData, i);
+	for(i=0; i<usRegSize; i++) g_ucaServoTxBuffer[10+i] = nthByteOf(ulData, i);
 	
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
-	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
+	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
+	DXL_PrintBuf(g_ucaServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData(ucServoTxBuffer, usPacketSize);
+	DMA_SendData( dmaServoTxStream, usPacketSize );
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -201,40 +205,40 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
-	ucServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_INST]			= dxlINST_Sync_Write;
-	ucServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
-	ucServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
+	g_ucaServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
+	g_ucaServoTxBuffer[eBYTE_LEN_L]			= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]			= HIGH_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_INST]			= dxlINST_Sync_Write;
+	g_ucaServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
+	g_ucaServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
 	
 	for(i=0; i<ucServoNum; i++) 
 	{
-		ucServoTxBuffer[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
+		g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
 
 		for(j=0; j<usRegSize; j++)
-			ucServoTxBuffer[SYNC_OPT_START_ADDR+i*(usRegSize+1)+1 + j] 
+			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR+i*(usRegSize+1)+1 + j] 
 												= nthByteOf(ulDataBuf[i], j);
 	}
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
-	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
+	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 	
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
+	DXL_PrintBuf(g_ucaServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 
-	DMA_SendData(ucServoTxBuffer, usPacketSize);
+	DMA_SendData( dmaServoTxStream, usPacketSize );
 	
 }
 /* ---------------------------------------------------------------------------*/
@@ -257,34 +261,35 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucServoTxBuffer[eBYTE_ID]		= ucId;
-	ucServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Read;
-	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	ucServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	g_ucaServoTxBuffer[eBYTE_ID]		= ucId;
+	g_ucaServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_INST]		= dxlINST_Read;
+	g_ucaServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
+	g_ucaServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
-	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
+	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 	
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
+	DXL_PrintBuf(g_ucaServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData(ucServoTxBuffer, usPacketSize);
+	DMA_SendData( dmaServoTxStream, usPacketSize );
 	
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
+	xServoMsg.byteToRecv = dxlMIN_STATUS_PACK_LEN + usRegSize;
 	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
 }
 /* ---------------------------------------------------------------------------*/
@@ -308,40 +313,44 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	ucServoTxBuffer[eBYTE_ID]		= ID_BROADCAST;
-	ucServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
-	ucServoTxBuffer[eBYTE_INST]		= dxlINST_Sync_Read;
-	ucServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	ucServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	ucServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	while( usart2Busy );
+	
+	g_ucaServoTxBuffer[eBYTE_ID]		= ID_BROADCAST;
+	g_ucaServoTxBuffer[eBYTE_LEN_L]		= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]		= HIGH_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_INST]		= dxlINST_Sync_Read;
+	g_ucaServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
+	g_ucaServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
 	
 	for(i=0; i<ucServoNum; i++)
 	{
-		ucServoTxBuffer[SYNC_OPT_START_ADDR + i] = ucDxlIdBuf[i];
+		g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + i] = ucDxlIdBuf[i];
 	}
 	
-	usDxlCrcCheck = DXL_CrcCheck(ucServoTxBuffer, usPacketSize - 2);
-	ucServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	ucServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
+	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 
 /*	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
 	printf("in file: %s, line: %d\r\n", __FILE__, __LINE__);
-	DXL_PrintBuf(ucServoTxBuffer, usPacketSize, false);
+	DXL_PrintBuf(g_ucaServoTxBuffer, usPacketSize, false);
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
-	
-	DMA_SendData(ucServoTxBuffer, usPacketSize);
-	
+
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
+	xServoMsg.byteToRecv = ( s_ucOnlineServoCount ) * ( dxlMIN_STATUS_PACK_LEN + usRegSize );
 	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
+	DMA_SendData( dmaServoTxStream, usPacketSize );
+	
+
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -354,9 +363,17 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 	*/
 void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable)
 {
-	if(fWriteEnable != DISABLE) pServoMsg->fWriteEnable = ENABLE;
+	if(fWriteEnable != DISABLE) 
+	{
+		pServoMsg->fWriteEnable = ENABLE;
+		pServoMsg->fReadEnable = ENABLE;
+	}
 	
-	else pServoMsg->fWriteEnable = DISABLE;
+	else 
+	{
+		pServoMsg->fWriteEnable = DISABLE;
+		pServoMsg->fReadEnable = DISABLE;
+	}
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -364,102 +381,160 @@ void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable)
 	* @brief	解析舵机返回参数，放入舵机状态数组,
 				此函数会调用下ClearMsg()清理结构体内容
 	* @param  	pServoMsg：消息结构体指针
-	* @retval 	None
+	* @retval 	0：无误，-1：数据包长度不足，-2：数据中无包头，-3：数据有误
 	*/
-uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg)
+int DXL_GetPresentParam(ServoMsg* pServoMsg)
 {
 	uint16_t usBufLen = pServoMsg->ucByteRecved;
 	uint16_t usRegAddr = pServoMsg->usRegAddr;
 	uint16_t usRegSize = pServoMsg->usRegSize;
 	uint8_t* ucSrcBuf = pServoMsg->pDataBuf;
-	uint16_t usStartByte = 0, usCrcByte = 0, usSinglePackLen = 0;
-	uint8_t ucCol = 0, ucId = 0;
-	float fCoff = 0.0;
-	uint16_t usCrc = 0;
-	uint16_t i = 0, j=0, ucPackNum = 0;
-	uint32_t ulStatus = 0;
-	int lStatus = 0;
-	signed short sStatus = 0;
+	int packHeadIndex = 0;
+	uint16_t packLen = 0;
+	uint8_t statusPackLeftLen = usBufLen;
+	uint8_t validPackCount = 0;
+	uint16_t crc = 0;
+	uint8_t statusBufCol = 0;
+	double statusCoff = 0.0;
+	uint8_t id = 0;
+	uint32_t statusVal = 0;
+	int i = 0;
 	
-	//如果数据量不足一个最小的数据包长度
-	if(usBufLen < MIN_STATUS_PACK_LEN)
-		return 1;
+//	static uint8_t buf[16];
+//	for( i = 0; i < 16; i++ )
+//	buf[ i ] = 0;
 	
-	//设定当前数据处理方式及存储位置
-	if(usRegAddr == dxlREG_Present_Position) 	{ucCol = COL_Pos;		fCoff = 1.0;}
-	if(usRegAddr == dxlREG_Present_Voltage) 	{ucCol = COL_Volt; 		fCoff = 0.10;}
-	if(usRegAddr == dxlREG_Present_Current) 	{ucCol = COL_Current; 	fCoff = 2.29;}
-	if(usRegAddr == dxlREG_Present_Velocity) 	{ucCol = COL_Velocity; 	fCoff = 0.229*360.0/60.0;}
-	if(usRegAddr == dxlREG_Realtime_Tick) 	{ucCol = COL_Tick; 		fCoff = 1.0;}
+	if( usBufLen < dxlMIN_STATUS_PACK_LEN ) { return -1; }
 
-	//寻找数据包起始位置
-	for(i=0; i<(usBufLen-3); i++)
+	//根据数据包内容确定数据存储位置及系数
+	if(usRegAddr == dxlREG_Present_Voltage) 	
 	{
-		if((ucSrcBuf[i]==0xFF) && (ucSrcBuf[i+1]==0xFF) &&\
-			(ucSrcBuf[i+2]==0xFD) &&(ucSrcBuf[i+3]==0x00))
+		statusBufCol = dxlCOL_Volt;
+		statusCoff = 0.10;						//电压，单位V
+	}
+	if(usRegAddr == dxlREG_Present_Current) 	
+	{
+		statusBufCol = dxlCOL_Current;
+		statusCoff = 2.29;						//电流，单位mA
+	}
+	if(usRegAddr == dxlREG_Present_Velocity) 	
+	{
+		statusBufCol = dxlCOL_Velocity;
+		statusCoff = 0.229*360.0/60.0;			//角速度
+	}
+	while( statusPackLeftLen >= dxlMIN_STATUS_PACK_LEN )
+	{
+
+		packHeadIndex = DXL_FindFirstPackhead( ucSrcBuf, statusPackLeftLen );
+		//如果数据包中没有包头
+		if( packHeadIndex < 0 ) 
 		{
-			usStartByte = i;
-			break;
+			xClearMsg( pServoMsg );
+			return packHeadIndex; 
 		}
+		//数组指针指向包头
+		ucSrcBuf += packHeadIndex;
+		
+		packLen =  7 + ucSrcBuf[ dxlStatusPackLenLowByte ] | ucSrcBuf[ dxlStatusPackLenHighByte ];
+		
+		
+		//如果收到自己发送的数据包，则跳出此次循环
+		if( ucSrcBuf[ dxlStatusPackInstByte ] != 0x55 )
+		{
+			ucSrcBuf += packLen;
+			statusPackLeftLen -= packLen;
+			continue;
+		}
+		
+		//如果开启了数据校验
+		if ( dxlEnableStatusCRC )
+		{
+			crc = CrcCheck( ucSrcBuf, packLen - 2 );
+			if( LOW_BYTE( crc ) != ucSrcBuf[ packLen - 2 ] ||
+				HIGH_BYTE( crc ) != ucSrcBuf[ packLen - 1 ] )
+			{
+				ucSrcBuf += packLen;
+				statusPackLeftLen -= packLen;
+				continue;
+			}
+		}
+		
+		//提取ID
+		id = ucSrcBuf[ dxlStatusPackIdByte ];
+		
+		if( usRegAddr != dxlPing )
+		{
+			//提取数据
+			for( i = 0; i < usRegSize; i++ ) 	
+			{
+				statusVal |= ( ( ucSrcBuf[ dxlStatusPackParamByte + i ] ) << ( 8 * i ) );
+			}
 			
-		return 2;
-	}
+			//
+			if( usRegAddr == dxlREG_Present_Current )
+				s_usaServoCurrentBuf[ id - 1 ] = statusVal;
+			if( usRegAddr == dxlREG_Present_Position )
+				s_ulaServoPosBuf[ id - 1 ] = statusVal;
+			if( usRegAddr == dxlREG_Present_Velocity )
+				s_ulaServoVelBuf[ id - 1 ] = statusVal;
+			if( usRegAddr == dxlREG_Present_Voltage )
+				s_usServoVolt = statusVal;
+			
+		}
+		
+		
 
-	//计算单个数据包长度
-	usSinglePackLen = MIN_STATUS_PACK_LEN + usRegSize;
+		//写入舵机状态数组
+		if( usRegSize == 2 )
+			dServoStatusBuf [ statusBufCol ][ id - 1 ] = 
+								statusCoff * ( short ) ( statusVal & 0xffff );
+		else if( usRegSize == 4 )
+			dServoStatusBuf [ statusBufCol ][ id - 1 ] = 
+								statusCoff * ( int ) statusVal;
+		
+		//有效数据包数量++，数组起始指针后移，数组剩余空间减少
+		statusVal = 0;
+		validPackCount++;
+		ucSrcBuf += packLen;
+		statusPackLeftLen -= packLen;
+	}
 	
-	//计算数组内数据包数量
-	ucPackNum = ((usBufLen - usStartByte) / usSinglePackLen);
-
-	//如果没有数据包
-	if(!ucPackNum)
-	{
-		return 2;
-	}
-
-	//参数解析
-	for(i=0; i<ucPackNum; i++)
-	{
+	
+	
+	//重置数据包
+	xClearMsg( pServoMsg );
+	
+	if( !validPackCount ) { return -3; }
 		
-		//若收到了自己发送的数据，则跳过
-		if(*(ucSrcBuf + usStartByte + STATUS_INST_BYTE) != 0x55) continue;
-		
-		//计算校验码
-		usCrc = DXL_CrcCheck((ucSrcBuf + usStartByte +i*usSinglePackLen), (usSinglePackLen-2));
-		usCrcByte = usStartByte + i*usSinglePackLen + usSinglePackLen - 2;
-		
-		//若校验码有误，则跳过此数据包
-		if((LOW_BYTE(usCrc) != ucSrcBuf[usCrcByte]) ||\
-			(HIGH_BYTE(usCrc) != ucSrcBuf[usCrcByte+1])) continue;
-		
-		//提取数据
-		for(j=0; j<usRegSize; j++) 	
-			ulStatus |= ((ucSrcBuf[usStartByte + i*usSinglePackLen\
-						+ Stasus_Param_Byte + j]) << (8 * j));
-		
-		//提取数据包对应id
-		ucId = ucSrcBuf[usStartByte + i*usSinglePackLen + Status_ID_Byte];	
-		
-		//部分数据为有符号数据，需转换成int或short
-		if(usRegSize == 2) 
-		{
-			sStatus = (short) (ulStatus & 0xffff);
-			//通过系数计算实际值
-			fServoStatusBuf[ucCol][ucId-1] = sStatus * fCoff;
-		}
-		else 
-		{
-			lStatus = (int)ulStatus;
-			//通过系数计算实际值
-			fServoStatusBuf[ucCol][ucId-1] = lStatus * fCoff;
-		}
-		
-	}
-
-	//清理消息结构体内容
-	xClearMsg(pServoMsg);
-	return 0;
+	return validPackCount;		
 }	
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	寻找首个包头的位置
+	* @param  	pucBuf：数据数组，len：数组长度
+	* @retval 	非负：包头起始位置；否则，未找到包头
+	*/
+static int DXL_FindFirstPackhead( uint8_t * pucBuf, uint8_t len )
+{
+	uint8_t i = 0;
+	
+	if( len < dxlMIN_STATUS_PACK_LEN ) { return -1; }
+	
+	for( i = 0; i < len - dxlMIN_STATUS_PACK_LEN; i++ )
+	{
+		if( pucBuf[ i + 0 ] == 0xFF &&
+			pucBuf[ i + 1 ] == 0xFF &&
+			pucBuf[ i + 2 ] == 0xFD &&
+			pucBuf[ i + 3 ] == 0x00 )
+		//返回包头位置
+		return i ;
+	}
+	
+	//运行到此处即说明未找到包头
+	return -2;
+}
+	
 /* ---------------------------------------------------------------------------*/
 
 /****
@@ -470,17 +545,21 @@ uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg)
 void DXL_SetAllBaudrate(EDxlBaudrate eBaudrate)
 {
 	u8 i = 0;
-	
+	delay_ms( 50 );
 	DXL_SetAllTorque(DISABLE);
-	delay_ms(1000);
+	delay_ms( 50 );
 	
-	for (i=0; i<ctrlSERVO_NUM; i++) uxDxlParamBuf[i] = eBaudrate;
-	DXL_RegSyncWrite(dxlREG_Baudrate, REG_1_BYTE, ctrlSERVO_NUM,
-										uxDxlParamBuf, ucDxlIdBuf);
-	delay_ms(1000);
+	for( i = 0; i < ctrlSERVO_NUM; i++ )
+	{
+		DXL_RegWrite( dxlREG_Baudrate, 1, eBaudrate, ucDxlIdBuf[ i ] );
+		delay_ms( 50 );
+	}
+	
 	USART2_Init(ulDxlBaudrateBuf[eBaudrate]);
-	delay_ms(1000);
+	delay_ms( 50 );
 	DXL_SetAllTorque(ENABLE);
+	
+	blink( 4, 20, 50 );
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -529,7 +608,7 @@ void DXL_SetAllLedState(FunctionalState fLedState)
 
 /****
 	* @brief	设定全部舵机的状态返回等级(注意：全部是指id从1到SERVO_NUM的舵机)
-	* @param  	ulGoalPosBuf：舵机目标位置数组	
+	* @param  	eReturnLevel：状态返回等级	
     * @retval 	None
     */
 void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel)
@@ -540,6 +619,26 @@ void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel)
 	DXL_RegSyncWrite(dxlREG_Status_Return_Lv, REG_1_BYTE, ctrlSERVO_NUM,\
 										uxDxlParamBuf, ucDxlIdBuf);
 }
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	设定全部舵机的状态返回延时(注意：全部是指id从1到SERVO_NUM的舵机)
+	* @param  	usReturnDelayUS：状态返回延时	
+    * @retval 	None
+    */
+void DXL_SetAllReturnDelay( uint16_t usReturnDelayUs )
+{
+	uint8_t i = 0;
+	
+	for( i = 0; i < ctrlSERVO_NUM; i++ ) uxDxlParamBuf[ i ] = usReturnDelayUs / 2;
+	
+	DXL_RegSyncWrite( dxlREG_Return_Delay_Us,
+					  REG_1_BYTE,
+					  ctrlSERVO_NUM,
+					  uxDxlParamBuf,
+					  ucDxlIdBuf);
+}
+	
 /* ---------------------------------------------------------------------------*/
 
 /****
@@ -567,6 +666,92 @@ void DXL_GetAllLedState(void)
 /* ---------------------------------------------------------------------------*/
 
 /****
+	* @brief	Ping，查看在线舵机数量
+	* @param  	无
+	* @retval 	在线舵机数量
+    */
+uint8_t DXL_Ping( void )
+{
+	int count;
+	g_ucaServoTxBuffer[ eBYTE_ID ]			= ID_BROADCAST;
+	g_ucaServoTxBuffer[ eBYTE_LEN_L ]		= LOW_BYTE( 0x03 );
+	g_ucaServoTxBuffer[ eBYTE_LEN_H ]		= HIGH_BYTE( 0x00 );
+	g_ucaServoTxBuffer[ eBYTE_INST ]		= dxlINST_Ping;
+	g_ucaServoTxBuffer[ 8 ] 				= 0x31;
+	g_ucaServoTxBuffer[ 9 ] 				= 0x42;
+	
+	xServoMsg.usRegAddr = dxlPing;
+	xServoMsg.usRegSize = 3;
+	xServoMsg.byteToRecv = 1;
+	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
+	DMA_SendData( dmaServoTxStream, 10 );
+	
+	
+	delay_us ( 500 * 1000 );
+	
+	if( xServoMsg.bDataReady )
+	{
+		count = DXL_GetPresentParam( &xServoMsg );
+		if( count > 0 )
+			s_ucOnlineServoCount = count;
+		return s_ucOnlineServoCount;
+	}
+	else
+		return 0;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	将舵机信息放入数组，低字节在前
+	* @param  	msgType：数据类型
+    * @retval 	无
+    */
+int DXL_SetComBuf( COMM_MSG_E msgType )
+{
+	uint8_t pbuf[ HALF_BUF_SIZE ];
+	uint8_t *p;
+	uint16_t size;
+	uint8_t regSize;
+	uint8_t i;
+	if( msgType == MSG_SYS_Info || msgType == MSG_IMU )
+		return 1;
+	
+	if( msgType == MSG_Servo_Current )
+	{
+		p = ( uint8_t *) s_usaServoCurrentBuf;
+		size =  sizeof( uint16_t ) * ctrlSERVO_NUM;
+	}
+	else if( msgType == MSG_Servo_Pos )
+	{
+		p = ( uint8_t *) s_ulaServoPosBuf;
+		size = sizeof( uint32_t ) * ctrlSERVO_NUM;
+	}
+	else if( msgType == MSG_Servo_Vel )
+	{
+		p = ( uint8_t *) s_ulaServoVelBuf;
+		size = sizeof( uint32_t ) * ctrlSERVO_NUM;
+	}
+	else if( msgType == MSG_Servo_Volt )
+	{
+		p = ( uint8_t *) &s_usServoVolt;
+		size = sizeof( uint16_t );
+	}
+
+	
+	for( i = 0; i < size; i++ )
+		pbuf[ i ] = *p++;
+
+	DC_SetBuffer( pbuf, size, msgType );
+
+	DC_Send();
+
+	
+	return 0;
+}
+
+/* ---------------------------------------------------------------------------*/
+
+/****
 	* @brief	创建串口消息结构体
     * @param  	ucSrcBuf：消息指向的数据数组
     * @retval 	返回一个初始化的消息结构体
@@ -574,12 +759,13 @@ void DXL_GetAllLedState(void)
 ServoMsg xCreateMsg(uint8_t* ucSrcBuf)
 {
 	ServoMsg xMsg;
-	xMsg.bDataReady = false;
-	xMsg.fWriteEnable = DISABLE;
-	xMsg.pDataBuf = ucSrcBuf;
-	xMsg.ucByteRecved = 0;
-	xMsg.usRegAddr = 0;
-	xMsg.usRegSize = 0;
+	xMsg.bDataReady 	= false;
+	xMsg.fReadEnable 	= DISABLE;
+	xMsg.fWriteEnable 	= DISABLE;
+	xMsg.pDataBuf 		= ucSrcBuf;
+	xMsg.ucByteRecved 	= 0;
+	xMsg.usRegAddr 		= 0;
+	xMsg.usRegSize 		= 0;
 	
 	return xMsg;
 }
@@ -592,11 +778,13 @@ ServoMsg xCreateMsg(uint8_t* ucSrcBuf)
     */
 void xClearMsg(ServoMsg* pMsg)
 {
-	pMsg->bDataReady = false;
-	pMsg->fWriteEnable = DISABLE;
-	pMsg->ucByteRecved = 0;
-	pMsg->usRegAddr = 0;
-	pMsg->usRegSize = 0;
+	pMsg->bDataReady 	= false;
+	pMsg->fWriteEnable 	= DISABLE;
+	pMsg->fReadEnable 	= DISABLE;
+	pMsg->ucByteRecved 	= 0;
+	pMsg->usRegAddr 	= 0;
+	pMsg->usRegSize 	= 0;
+	pMsg->byteToRecv	= 0;
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -630,32 +818,6 @@ bool isMsgDataReady(ServoMsg xMsg)
 /* ---------------------------------------------------------------------------*/
 
 /****
-	* @brief	计算校验码
-	* @param  	usBuf：需要校验的数据数组
-	* @param  	ucLen：数据长度
-    * @retval 	None
-    */
-#ifdef IN_DEBUG_MODE
-uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen)
-#else
-static uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen)
-#endif
-
-{
-	uint16_t i, j;
-    uint16_t usCrcAccum = 0;
-
-    for(j = 0; j < ucLen; j++)
-    {
-        i = ((u16)(usCrcAccum >> 8) ^ (*(ucBuf + j))) & 0xFF;
-        usCrcAccum = (usCrcAccum << 8) ^ DXL_CrcTable[i];
-    }
-
-    return usCrcAccum;
-}
-/* ---------------------------------------------------------------------------*/
-
-/****
 	* @brief	串口打印舵机状态数据
     * @param  	None
     * @retval 	None
@@ -666,17 +828,23 @@ void DXL_PrintStatusBuf(void)
 static void DXL_PrintStatusBuf(void)
 #endif
 {
-	uint8_t ucServoNum, ucStatusNum;
+	uint8_t ucServoNum, i, j;
 	
 //	for(ucServoNum=0; ucServoNum<SERVO_NUM; ucServoNum++)	printf("%6d  ", ucServoNum);
 //	printf("\r\n");
 	
-	for(ucStatusNum=0; ucStatusNum<SERVO_STATUS_NUM; ucStatusNum++)
+	printf( "Servo status:\t" );
+	for( j = 0; i < ctrlSERVO_NUM; i++ )
+			printf( "%2d\t", ( j + 1 ) );
+		printf( "\r\n" );
+	
+	for( i = 0; i < dxlStatusCount; i++ )
 	{
-		printf("%s", cServoStatusMsgBuf[ucStatusNum]);
+		printf( "%s\t", cServoStatusMsgBuf[ i ] );
 		
-		for(ucServoNum=0; ucServoNum<ctrlSERVO_NUM; ucServoNum++)	
-			printf("%2d: %6.3f  ", ucStatusNum, fServoStatusBuf[ucStatusNum][ucServoNum]);
+		
+		for( ucServoNum = 0; ucServoNum<ctrlSERVO_NUM; ucServoNum++)	
+			printf("%2d: %6.3f  ", i, dServoStatusBuf[i][ucServoNum]);
 		
 		printf("\r\n");
 	}

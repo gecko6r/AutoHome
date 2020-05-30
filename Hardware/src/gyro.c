@@ -8,14 +8,19 @@
   ******************************************************************************  
   */ 
 
-#include "Gyro.h"
+#include <string.h>
+
+#include "gyro.h"
 #include "i2c.h"
+#include "usart.h"
+#include "dataComm.h"
+
 /****
 	* @brief	初始化陀螺仪
 	* @param  	None
 	* @retval 	None
 	*/
-void Gyro_Init(void)
+void GYRO_Init(void)
 {
 	IIC_Init();
 }
@@ -28,16 +33,13 @@ void Gyro_Init(void)
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t Gyro_RegSingleWrite(uint8_t ucRegAddr,
-							uint16_t usSrc,
-							GyroErrType_t* pErr)
+uint8_t GYRO_RegSingleWrite( uint8_t ucRegAddr, uint16_t usSrc )
 {
 	uint8_t ucBuf[2] ={0};
 	ucBuf[0] = LOW_BYTE(usSrc);
 	ucBuf[1] = HIGH_BYTE(usSrc);
 	
-	return I2C_MultiWrite(GYRO_I2C, GYRO_SLAVE_ADDR<<1,
-							ucRegAddr, 2, ucBuf, pErr);
+	return I2C_MultiWrite( GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr, 2, ucBuf );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -48,14 +50,11 @@ uint8_t Gyro_RegSingleWrite(uint8_t ucRegAddr,
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t Gyro_RegSingleRead( uint8_t ucRegAddr,
-							uint16_t* pusDst,
-							GyroErrType_t* pErr)
+uint8_t GYRO_RegSingleRead( uint8_t ucRegAddr, uint16_t* pusDst )
 {
 	uint8_t ucBuf[2] = {0};
 	uint8_t ret = 0;
-	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1,
-							ucRegAddr, 2, ucBuf, pErr);
+	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr, 2, ucBuf );
 	*pusDst = (ucBuf[1]<<8 | ucBuf[0]);
 	return ret;
 }
@@ -69,10 +68,9 @@ uint8_t Gyro_RegSingleRead( uint8_t ucRegAddr,
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t Gyro_RegMultiWrite( uint8_t ucRegAddr,
+uint8_t GYRO_RegMultiWrite( uint8_t ucRegAddr,
 							uint8_t ucRegCount,
-							uint16_t* pusSrcBuf,
-							GyroErrType_t* pErr)
+							uint16_t* pusSrcBuf )
 {
 	//要写入的字节数量
 	const uint8_t ucByteCount = 2 * ucRegCount;
@@ -87,7 +85,7 @@ uint8_t Gyro_RegMultiWrite( uint8_t ucRegAddr,
 	}
 	
 	return I2C_MultiWrite(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr,
-									ucByteCount, ucBuf, pErr);
+									ucByteCount, ucBuf );
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -99,18 +97,17 @@ uint8_t Gyro_RegMultiWrite( uint8_t ucRegAddr,
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t Gyro_RegMultiRead(	uint8_t ucRegAddr,
+uint8_t GYRO_RegMultiRead(	uint8_t ucRegAddr,
 							uint8_t ucRegCount,
-							uint16_t* pusDstBuf,
-							GyroErrType_t* pErr)
+							uint16_t* pusDstBuf )
 {
 	//要读取的字节数量
 	const uint8_t ucByteCount = 2 * ucRegCount;
 	uint8_t ucBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t i = 0, ret;
 	
-	ret = I2C_MultiRead(GYRO_I2C, GYRO_SLAVE_ADDR<<1, ucRegAddr,
-									ucByteCount, ucBuf, pErr);
+	ret = I2C_MultiRead(GYRO_I2C, 0xA0, ucRegAddr,
+									ucByteCount, ucBuf );
 	
 	//将uint8数组转换成16数组，低字节在前
 	for(i=0; i<ucRegCount; i++)
@@ -127,23 +124,22 @@ uint8_t Gyro_RegMultiRead(	uint8_t ucRegAddr,
 	* @param  	pErr：错误信息指针
 	* @retval 	陀螺仪时间信息
 	*/
-GyroTimeType_t GYRO_GetCurrTime(GyroErrType_t* pErr)
+uint8_t	GYRO_GetCurrTime( GyroTime_t* pTime)
 {
-	GyroTimeType_t xGyroTime;
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroYYMM, 4, usBuf, pErr);
+	ret = GYRO_RegMultiRead(gyroYYMM, 4, usBuf );
 	
-	xGyroTime.ucYear 		= LOW_BYTE(usBuf[0]);
-	xGyroTime.ucMonth 		= HIGH_BYTE(usBuf[0]);
-	xGyroTime.ucDay 		= LOW_BYTE(usBuf[1]);
-	xGyroTime.ucHour 		= HIGH_BYTE(usBuf[1]);
-	xGyroTime.ucMinute		= LOW_BYTE(usBuf[2]);
-	xGyroTime.ucSecond 		= HIGH_BYTE(usBuf[2]);
-	xGyroTime.usMiliSecond 	= usBuf[3];
+	pTime->ucYear 		= LOW_BYTE(usBuf[0]);
+	pTime->ucMonth 		= HIGH_BYTE(usBuf[0]);
+	pTime->ucDay 		= LOW_BYTE(usBuf[1]);
+	pTime->ucHour 		= HIGH_BYTE(usBuf[1]);
+	pTime->ucMinute		= LOW_BYTE(usBuf[2]);
+	pTime->ucSecond 	= HIGH_BYTE(usBuf[2]);
+	pTime->usMiliSecond = usBuf[3];
 	
-	return xGyroTime;
+	return ret;
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -152,19 +148,18 @@ GyroTimeType_t GYRO_GetCurrTime(GyroErrType_t* pErr)
 	* @param  	pErr：错误信息指针
 	* @retval 	陀螺仪加速度信息
 	*/
-GyroAccType_t Gyro_GetCurrAcc(GyroErrType_t* pErr)
+uint8_t	GYRO_GetCurrAcc( GyroAcc_t* pAcc)
 {
-	GyroAccType_t xGyroAcc;
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroACC_AXISX, 3, usBuf, pErr);
+	ret = GYRO_RegMultiRead(gyroACC_AXISX, 3, usBuf );
 
-	xGyroAcc.x = ((short)usBuf[0] / 32768.0 * 16.0 * 9.8);
-	xGyroAcc.y = ((short)usBuf[1] / 32768.0 * 16.0 * 9.8);
-	xGyroAcc.z = ((short)usBuf[2] / 32768.0 * 16.0 * 9.8);
+	pAcc->x = ((short)usBuf[0] / 32768.0 * 16.0 * 9.8);
+	pAcc->y = ((short)usBuf[1] / 32768.0 * 16.0 * 9.8);
+	pAcc->z = ((short)usBuf[2] / 32768.0 * 16.0 * 9.8);
 	
-	return xGyroAcc;
+	return ret;
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -173,19 +168,18 @@ GyroAccType_t Gyro_GetCurrAcc(GyroErrType_t* pErr)
 	* @param  	pErr：错误信息指针
 	* @retval 	陀螺仪角速度信息
 	*/
-GyroAngVelType_t Gyro_GetCurrAngVel(GyroErrType_t* pErr)
+uint8_t	GYRO_GetCurrAngVel( GyroAngVel_t* pAngleVel )
 {
-	GyroAngVelType_t xGyroAngVel;
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroANGV_AXISX, 3, usBuf, pErr);
+	ret = GYRO_RegMultiRead( gyroANGV_AXISX, 3, usBuf );
 	
-	xGyroAngVel.x = usBuf[0] / 32768.0 * 2000.0;
-	xGyroAngVel.y = usBuf[1] / 32768.0 * 2000.0;
-	xGyroAngVel.z = usBuf[2] / 32768.0 * 2000.0;
+	pAngleVel->x = usBuf[0] / 32768.0 * 2000.0;
+	pAngleVel->y = usBuf[1] / 32768.0 * 2000.0;
+	pAngleVel->z = usBuf[2] / 32768.0 * 2000.0;
 	
-	return xGyroAngVel;
+	return ret;
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -194,19 +188,18 @@ GyroAngVelType_t Gyro_GetCurrAngVel(GyroErrType_t* pErr)
 	* @param  	pErr：错误信息指针
 	* @retval 	陀螺仪磁场信息
 	*/
-GyroMagType_t Gyro_GetCurrMag(GyroErrType_t* pErr)
+uint8_t	GYRO_GetCurrMag( GyroMag_t* pMag)
 {
-	GyroMagType_t xGyroMag;
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroMAG_AXISX, 3, usBuf, pErr);
+	ret = GYRO_RegMultiRead(gyroMAG_AXISX, 3, usBuf );
 	
-	xGyroMag.roll 	= usBuf[0];
-	xGyroMag.pitch 	= usBuf[1];
-	xGyroMag.yaw 	= usBuf[2];
+	pMag->roll 	= usBuf[0];
+	pMag->roll 	= usBuf[1];
+	pMag->roll 	= usBuf[2];
 	
-	return xGyroMag;
+	return ret;
 }
 /* ---------------------------------------------------------------------------*/
 											   
@@ -215,20 +208,50 @@ GyroMagType_t Gyro_GetCurrMag(GyroErrType_t* pErr)
 	* @param  	pErr：错误信息指针
 	* @retval 	陀螺仪角度信息
 	*/
-GyroAngleType_t Gyro_GetCurrAng(GyroErrType_t* pErr)
+uint8_t	GYRO_GetCurrAng( GyroAngle_t* pAngle)
 {
-	GyroAngleType_t xGyroAngle;
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = Gyro_RegMultiRead(gyroROLL, 3, usBuf, pErr);
+	ret = GYRO_RegMultiRead( gyroROLL, 3, usBuf );
 	
-	xGyroAngle.roll 	= (short)usBuf[0] / 32768.0 * 180.0;
-	xGyroAngle.pitch 	= (short)usBuf[1] / 32768.0 * 180.0;
-	xGyroAngle.yaw 		= (short)usBuf[2] / 32768.0 * 180.0;
-//	xGyroAngle.roll 	= usBuf[0];
-//	xGyroAngle.pitch 	= usBuf[1];
-//	xGyroAngle.yaw 		= usBuf[2];
+	pAngle->pitch 	= (short)usBuf[0] / 32768.0 * 180.0;
+	pAngle->roll 	= (short)usBuf[1] / 32768.0 * 180.0;
+	pAngle->yaw 	= (short)usBuf[2] / 32768.0 * 180.0;
 	
-	return xGyroAngle;
+	return ret;
 }	
+/* ---------------------------------------------------------------------------*/
+											   
+/****
+	* @brief	读取陀螺仪的加速度、角速度和角度数据，并存入数组
+	* @param  	ucpDst: 数组地址
+	* @retval 	大于0，表示读出的数据长度，小于0，则有错误
+	*/
+int GYRO_GetImuData( uint8_t *ucpDst )
+{
+	uint8_t tmp = 0;
+	uint16_t usaTmp[ 3 ];
+	int res = 0;
+	
+	res = GYRO_RegMultiRead( gyroACC_AXISX, 3, usaTmp );
+	if( res )
+		return -res;
+	memcpy( ucpDst, usaTmp, 6 );
+	
+	res = GYRO_RegMultiRead( gyroANGV_AXISX, 3, usaTmp );
+	if( res )
+		return -res;
+	memcpy( ucpDst + 6, usaTmp, 6 );
+	
+	res = GYRO_RegMultiRead( gyroROLL, 3, usaTmp );
+	if( res )
+		return -res;
+	memcpy( ucpDst + 12, usaTmp, 6 );
+		
+	return 18;
+	
+}
+	
+	
+	

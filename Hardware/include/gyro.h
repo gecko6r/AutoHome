@@ -23,15 +23,15 @@
 #define HIGH_BYTE(a)			((uint8_t)	(((uint16_t)(a)) >> 8))
 
 /* Macro type definations -----------------------------------------*/
-#define GyroErrType_t 			I2cErrType_t
-#define GyroTimeType_t			GyroTimeType
-#define GyroAccType_t			GyroAccType
-#define GyroAngVelType_t		GyroAngVelType
-#define GyroMagType_t			GyroMagType
-#define GyroAngleType_t			GyroAngleType
-#define GyroPortStatusType_t	GyroPortStatusType
-#define GyroGPSInfoType_t		GyroGPSInfoType
-#define GyroQType_t				GyroQType
+#define GyroErr_t 				I2cErr_t
+#define GyroTime_t				GyroTimeType
+#define GyroAcc_t				GyroAccType
+#define GyroAngVel_t			GyroAngVelType
+#define GyroMag_t				GyroMagType
+#define GyroAngle_t				GyroAngleType
+#define GyroPortStatus_t		GyroPortStatusType
+#define GyroGPSInfo_t			GyroGPSInfoType
+#define GyroQ_t					GyroQType
 
 /* 陀螺仪寄存器地址 -----------------------------------------*/	
 #define gyroSAVE				((uint8_t) 0x00)		//保存当前配置
@@ -199,33 +199,26 @@ enum ePackType{
 /* Private variables definations ---------------------------------------------*/
 
 /* 陀螺仪初始化 --------------------------------------------------------------*/	
-void Gyro_Init(void);
+void GYRO_Init(void);
 
 /* 陀螺仪寄存器操作 ----------------------------------------------------------*/	
-uint8_t Gyro_RegSingleWrite(uint8_t ucRegAddr,
-							uint16_t usSrc,
-							GyroErrType_t* pErr);
-uint8_t Gyro_RegSingleRead(	uint8_t ucRegAddr,
-							uint16_t* pusDst,
-							GyroErrType_t* pErr);
-uint8_t Gyro_RegMultiWrite(	uint8_t ucRegAddr,
-							uint8_t ucRegCount,
-							uint16_t* pusSrcBuf,
-							GyroErrType_t* pErr);
-uint8_t Gyro_RegMultiRead(	uint8_t ucRegAddr,
-							uint8_t ucRegCount,
-							uint16_t* pusDstBuf,
-							GyroErrType_t* pErr);
+uint8_t GYRO_RegSingleWrite( uint8_t ucRegAddr, uint16_t usSrc );
+uint8_t GYRO_RegSingleRead(	uint8_t ucRegAddr, uint16_t* pusDst );
+uint8_t GYRO_RegMultiWrite(	uint8_t ucRegAddr, uint8_t ucRegCount, 
+							uint16_t* pusSrcBuf );
+uint8_t GYRO_RegMultiRead( uint8_t ucRegAddr, uint8_t ucRegCount, 
+							uint16_t* pusDstBuf );
 
 /* 陀螺仪数据函获取函数 ------------------------------------------------------*/	
-GyroTimeType_t 			Gyro_GetCurrTime(GyroErrType_t* pErr);
-GyroAccType_t 			Gyro_GetCurrAcc(GyroErrType_t* pErr);
-GyroAngVelType_t 		Gyro_GetCurrAngVel(GyroErrType_t* pErr);
-GyroMagType_t 			Gyro_GetCurrMag(GyroErrType_t* pErr);
-GyroAngleType_t 		Gyro_GetCurrAng(GyroErrType_t* pErr);
-GyroPortStatusType_t 	Gyro_GetCurrPortStatus(GyroErrType_t* pErr);
-GyroGPSInfoType_t 		Gyro_GetCurrGPSInfo(GyroErrType_t* pErr);
-GyroQType_t				Gyro_GetCurrQ(GyroErrType_t* pErr);
+uint8_t	GYRO_GetCurrTime( GyroTime_t* );
+uint8_t	GYRO_GetCurrAcc( GyroAcc_t* );
+uint8_t	GYRO_GetCurrAngVel( GyroAngVel_t* );
+uint8_t	GYRO_GetCurrMag( GyroMag_t* );
+uint8_t	GYRO_GetCurrAng( GyroAngle_t* );
+uint8_t	GYRO_GetCurrPortStatus( GyroPortStatus_t* );
+uint8_t	GYRO_GetCurrGPSInfo( GyroGPSInfo_t* );
+uint8_t	GYRO_GetCurrQ( GyroQ_t* );
+int GYRO_GetImuData( uint8_t *ucpDst );
 
 /* 陀螺仪参数设定函数 --------------------------------------------------------*/	
  

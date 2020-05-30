@@ -9,13 +9,10 @@
   */ 
   
 #include "i2c.h"
+#include "usart.h"
 
-
-static uint16_t usTimeCount;			//用于检测线路超时
-I2cErrType_t i2cError;					//用于检测IIC通讯错误
-
-//错误处理宏定义
-#define _I2C_ERR_HANDLE		{I2C_GenerateSTOP(I2Cx, ENABLE); return 1;}
+static uint32_t usTimeCount;			//用于检测线路超时
+static uint16_t IIC_status;
 
 /* ---------------------------------------------------------------------------*/
 
@@ -60,7 +57,6 @@ void IIC_Init(void)
     I2C_Cmd(I2C2, ENABLE);
 	I2C_StretchClockCmd(I2C2, DISABLE);
 	
-	i2cError = I2C_ERR_NoError;
 
 }
 /* ---------------------------------------------------------------------------*/
@@ -71,21 +67,18 @@ void IIC_Init(void)
     * @param  	ucSlaveAddr：从设备地址	
     * @param	ucRegAddr：寄存器地址
     * @param  	ucData：数据
-    * @param  	err：错误信息存储地址
 	* @retval 	0：无错误，非0：有错误
     */
 uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
-					uint8_t ucData, I2cErrType_t* err)
+					uint8_t ucData )
 {
-	u16 flag = 0;
 	
 	while (I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY))  //等待I2C
 	{
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_Busy;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
 		}
 	}
 	
@@ -99,8 +92,8 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	
@@ -114,14 +107,14 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > 1000)
 		{
-			*err = I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
 	//
 	//读取SR2状态寄存器
 	//
-	flag = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
+	IIC_status = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
 	
 	I2C_SendData(I2Cx, ucRegAddr);  //发送存储地址
 	usTimeCount = 0;
@@ -133,8 +126,8 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_SendRegAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendRegAddrTimeOut;
 		}
 	}
 	I2C_SendData(I2Cx, ucData);  //发送数据
@@ -147,12 +140,13 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err = I2C_ERR_SendDataTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendDataTimeOut;
 		}
 	}
 	I2C_GenerateSTOP(I2Cx, ENABLE);  //产生停止信号
 	
+	IIC_status = 0;
 	return 0;
 }
 /* ---------------------------------------------------------------------------*/
@@ -165,19 +159,16 @@ uint8_t I2C_ByteWrite(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
     * @param  	err：错误信息存储地址
 	* @retval 	0：无错误，非0：有错误
     */
-uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
-							uint8_t ucRegAddr, I2cErrType_t* err)
+uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,
+							uint8_t ucRegAddr, uint8_t *pcDst )
 {
-	u8 ucData = 0;
-	u16 flag = 0;
-	
 	while (I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY))  //等待I2C
 	{
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_Busy;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_Busy;
 		}
 	}
 	I2C_GenerateSTART(I2Cx, ENABLE);  //发送起始信号
@@ -190,8 +181,8 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	I2C_Send7bitAddress(I2Cx, ucSlaveAddr, I2C_Direction_Transmitter);  //发送设备地址
@@ -204,11 +195,12 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
-	flag = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
+	
+	IIC_status = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
 	
 	I2C_SendData(I2Cx, ucRegAddr);  //发送存储地址
 	usTimeCount = 0;
@@ -220,8 +212,8 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendRegAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendRegAddrTimeOut;
 		}
 	}
 	I2C_GenerateSTART(I2Cx, ENABLE);  //重启信号
@@ -234,8 +226,8 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	I2C_Send7bitAddress(I2Cx, ucSlaveAddr, I2C_Direction_Receiver);  //读取命令
@@ -248,11 +240,11 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
-	flag = I2Cx->SR2;
+	IIC_status = I2Cx->SR2;
 	
 	I2C_AcknowledgeConfig(I2Cx, DISABLE);  //发送NACK
 	I2C_GenerateSTOP(I2Cx, ENABLE);
@@ -265,14 +257,15 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_ReadTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_ReadTimeOut;
 		}
 	}
-	ucData = I2C_ReceiveData(I2Cx);
+	*pcDst = I2C_ReceiveData(I2Cx);
 	I2C_AcknowledgeConfig(I2Cx, ENABLE);
 	
-	return ucData;
+	IIC_status = 0;
+	return 0;
 }
 
 /* ---------------------------------------------------------------------------*/
@@ -287,18 +280,16 @@ uint8_t I2C_ByteRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr,\
     * @param  	err：错误信息存储地址
 	* @retval 	0：无错误，非0：有错误
     */
-uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
-							uint8_t ucNumToWrite, uint8_t* pucBuffer, I2cErrType_t* err)
+uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
+							uint8_t ucNumToWrite, uint8_t* pucBuffer )
 {
-	u16 sta = 0;
-	
 	while (I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY))  //等待I2C
 	{
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_Busy;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_Busy;
 		}
 	}
 	I2C_GenerateSTART(I2Cx, ENABLE);  //产生起始信号
@@ -311,8 +302,8 @@ uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAdd
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	I2C_Send7bitAddress(I2Cx, ucSlaveAddr, I2C_Direction_Transmitter);  //发送设备地址
@@ -325,14 +316,14 @@ uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAdd
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
 	//
 	//读取SR2状态寄存器
 	//
-	sta = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
+	IIC_status = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
 	I2C_SendData(I2Cx, ucRegAddr);  //发送存储地址
 	usTimeCount = 0;
 	//
@@ -343,8 +334,8 @@ uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAdd
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendRegAddrTimeOut;
-			_I2C_ERR_HANDLE
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendRegAddrTimeOut;
 		}
 	}
 	//
@@ -362,14 +353,16 @@ uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAdd
 			usTimeCount++;
 			if (usTimeCount > I2C_TIME_OUT)
 			{
-				*err |= I2C_ERR_SendDataTimeOut;
-				_I2C_ERR_HANDLE
+				I2C_GenerateSTOP(I2Cx, ENABLE); 
+				return I2C_ERR_SendDataTimeOut;
 			}
 		}
 	}
 	
 	I2C_GenerateSTOP(I2Cx, ENABLE);  //产生停止信号
 	
+	IIC_status = 0;
+	return 0;
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -382,18 +375,17 @@ uint8_t I2C_MultiWrite(I2C_TypeDef * I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAdd
 	* @retval 	0：无错误，非0：有错误
     */
 uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,\
-					uint8_t ucNumToRead, uint8_t* pucBuffer, I2cErrType_t * err)
+					uint8_t ucNumToRead, uint8_t* pucBuffer )
 {
-	u16 temp = 0;
-	u16 sta = 0;
-	
+
+	usTimeCount = 0;
 	while (I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY))  //等待I2C
 	{
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_Busy;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_Busy;
 		}
 	}
 	I2C_GenerateSTART(I2Cx, ENABLE);  //发送起始信号
@@ -406,8 +398,8 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	I2C_Send7bitAddress(I2Cx, ucSlaveAddr, I2C_Direction_Transmitter);  //发送设备地址
@@ -420,11 +412,12 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			printf("write timeout\r\n");
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
-	sta = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
+	IIC_status = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
 	
 	I2C_SendData(I2Cx, ucRegAddr);  //发送存储地址
 	usTimeCount = 0;
@@ -436,8 +429,8 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendRegAddrTimeOut;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_SendRegAddrTimeOut;
 		}
 	}
 	I2C_GenerateSTART(I2Cx, ENABLE);  //重启信号
@@ -450,8 +443,8 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_StartTimeOut;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE); 
+			return I2C_ERR_StartTimeOut;
 		}
 	}
 	I2C_Send7bitAddress(I2Cx, ucSlaveAddr, I2C_Direction_Receiver);  //读取命令
@@ -464,11 +457,17 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		usTimeCount++;
 		if (usTimeCount > I2C_TIME_OUT)
 		{
-			*err |= I2C_ERR_SendSlaveAddrTimeOut;
-			_I2C_ERR_HANDLE	
+			I2C_GenerateSTOP(I2Cx, ENABLE);
+			printf("send read timeout");	
+			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
-	sta = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
+	
+	
+	
+	
+	
+	IIC_status = I2Cx->SR2;  //软件读取SR1寄存器后,对SR2寄存器的读操作将清除ADDR位，不可少！！！！！！！！！
 
 	while (ucNumToRead)
 	{
@@ -481,22 +480,24 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		//
 		//EV7
 		//
+		usTimeCount = 0;
 		while (!I2C_CheckEvent(I2Cx, I2C_EVENT_MASTER_BYTE_RECEIVED))
 		{
 			usTimeCount++;
 			if (usTimeCount > I2C_TIME_OUT)
 			{
-				*err |= I2C_ERR_ReadTimeOut;
-				_I2C_ERR_HANDLE
+				I2C_GenerateSTOP(I2Cx, ENABLE); 
+				return I2C_ERR_ReadTimeOut;
 			}
 		}
 		*(pucBuffer++) = I2C_ReceiveData(I2Cx);
+		
 		ucNumToRead--;
-
 	}
 	
 	I2C_AcknowledgeConfig(I2Cx, ENABLE);
 	
+	IIC_status = 0;
 	return 0;
 }
 

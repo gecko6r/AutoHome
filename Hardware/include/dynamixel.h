@@ -12,11 +12,9 @@
 #define _HARDWARE_DYNAMIXEL_H
 
 
-
-
-#include "sys.h"
-#include "dataManager.h"
+#include "dataComm.h"
 #include "controller.h"
+#include "sys.h"
 
 #define LOW_BYTE(a)				    ((uint8_t)	(((uint16_t)(a)) &	0xff))
 #define HIGH_BYTE(a)				((uint8_t)	(((uint16_t)(a)) >> 8))
@@ -27,6 +25,7 @@
 
 #define SYNC_OPT_START_ADDR			((uint8_t) 12 )		//in syncRead(Write) mode, the address of para5
 #define ID_BROADCAST				((uint8_t) 0xfe )	//the ID when operates multiple servos
+#define dxlPing						0xff
 
 #define PARAM_ADD_LEN				((uint16_t) 2 )
 #define PACKET_ADD_LEN				((uint16_t) 3 )
@@ -39,17 +38,21 @@
 
 
 /* Servo Status Matrix Buffer Definition -------------------------------------*/
-#define MIN_STATUS_PACK_LEN			((uint8_t) 11 )	//
-#define Stasus_Param_Byte			((uint8_t) 9 )
-#define STATUS_INST_BYTE			((uint8_t) 7 )
-#define Status_ID_Byte				((uint8_t) 4 )
-#define SERVO_STATUS_MSG_LEN		((uint8_t) 24 )
-#define SERVO_STATUS_NUM			((uint8_t) 5 )
-#define COL_Pos						((uint8_t) 0 )
-#define COL_Volt					((uint8_t) 1 )
-#define COL_Current					((uint8_t) 2 )
-#define COL_Velocity				((uint8_t) 3 )
-#define COL_Tick					((uint8_t) 4 )
+#define dxlEnableStatusCRC			0
+#define dxlMIN_STATUS_PACK_LEN		( ( uint8_t ) 11 )	//
+#define dxlStatusPackIdByte			( ( uint8_t ) 4 )
+#define dxlStatusPackLenLowByte		( ( uint8_t ) 5 )
+#define dxlStatusPackLenHighByte	( ( uint8_t ) 6 )
+#define dxlStatusPackInstByte		( ( uint8_t ) 7 )
+#define dxlStatusPackErrorByte		( ( uint8_t ) 8 )
+#define dxlStatusPackParamByte		( ( uint8_t ) 9 )
+
+#define dxlStatusCount				( ( uint8_t ) 5 )
+#define dxlCOL_Pos					( ( uint8_t ) 0 )
+#define dxlCOL_Volt					( ( uint8_t ) 1 )
+#define dxlCOL_Current				( ( uint8_t ) 2 )
+#define dxlCOL_Velocity				( ( uint8_t ) 3 )
+#define dxlCOL_Tick					( ( uint8_t ) 4 )
 
 
 /* Servo Communication Macros Definition -------------------------------------*/
@@ -60,11 +63,11 @@
 #define dxlREG_Firmware_version		( ( uint16_t ) 6 )
 #define dxlREG_ID					( ( uint16_t ) 7 )
 #define dxlREG_Baudrate				( ( uint16_t ) 8 )
-#define dxlREG_Return_Delay_us		( ( uint16_t ) 9 )
+#define dxlREG_Return_Delay_Us		( ( uint16_t ) 9 )
 #define dxlREG_Drive_Mode			( ( uint16_t ) 10 )
 #define dxlREG_Operating_Mode		( ( uint16_t ) 11 )
 #define dxlREG_SEC_ID				( ( uint16_t ) 12 )
-#define dxlREG_Protocol_t )ype		( ( uint16_t ) 13 )
+#define dxlREG_Protocol_type		( ( uint16_t ) 13 )
 #define dxlREG_Homing_Offset		( ( uint16_t ) 20 )
 #define dxlREG_Moving_Threshold		( ( uint16_t ) 24 )
 #define dxlREG_Temperature_Limit	( ( uint16_t ) 31 )
@@ -197,17 +200,21 @@ typedef enum{
 /*Dynamixel Servo message struct */
 typedef struct _stServoMsg_{
 	FunctionalState fWriteEnable;
-	bool bDataReady;
+	FunctionalState fReadEnable;
+	volatile bool bDataReady;
 	uint8_t* pDataBuf;
-	uint8_t ucByteRecved;
+	volatile uint8_t ucByteRecved;
+	uint8_t byteToRecv;
 	uint16_t usRegAddr;
 	uint16_t usRegSize;
 	bool err;
 }ServoMsg;	
 	
 
-/* Global Vaiables------------------------------------------------------------*/
-extern float fServoStatusBuf[SERVO_STATUS_NUM][ctrlSERVO_NUM];
+/* 全局变量定义 */
+extern uint8_t g_ucaServoTxBuffer[ HALF_BUF_SIZE ];
+extern uint8_t g_ucaServoRxBuffer[ HALF_BUF_SIZE ];
+extern double dServoStatusBuf[ dxlStatusCount ][ ctrlSERVO_NUM ];
 extern ServoMsg xServoMsg;
 
 /* Functions Definition ------------------------------------------------------*/
@@ -221,7 +228,8 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId);
 void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, 
 						uint8_t ucServoNum, uint8_t* ucIdBuf);
 void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable);
-uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg);
+int DXL_GetPresentParam(ServoMsg* pServoMsg);
+static int DXL_FindFirstPackhead( uint8_t * pucBuf, uint8_t len );
 
 ///* Servo communication buffer operating functions Definition ---------------*/
 //void DXL_SetTxBuffer(uint8_t* pucBuf, uint16_t usRegAddr, uint16_t usRegSize, 
@@ -232,6 +240,7 @@ uint8_t DXL_GetPresentParam(ServoMsg* pServoMsg);
 /* EEPROM Registers Write Functions Definition -------------------------------*/
 void DXL_SetAllBaudrate(EDxlBaudrate eBaudrate);
 void DXL_SetAllReturnLv(EStatusReturnLv eReturnLevel);
+void DXL_SetAllReturnDelay( uint16_t usReturnDelayUs );
 
 /* RAM Registers Write Functions Definition ----------------------------------*/
 void DXL_SetAllTorque(FunctionalState fTorqueState);
@@ -241,6 +250,8 @@ void DXL_SetAllLedState(FunctionalState fLedState);
 /* Servo Registers Read Functions Definition ---------------------------------*/
 void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize);
 void DXL_GetAllLedState(void);
+uint8_t DXL_Ping( void );
+int DXL_SetComBuf( COMM_MSG_E msgType );
 
 /* Dynamixel Servo Message Functions Definition ------------------------------*/
 ServoMsg xCreateMsg(uint8_t* ucSrcBuf);
@@ -249,10 +260,8 @@ bool isMsgWriteEnable(ServoMsg xMsg);
 bool isMsgDataReady(ServoMsg xMsg);
 
 /*Debug Functions Definition ------------------------------------------------*/
-#ifdef IN_DEBUG_MODE
-uint16_t DXL_CrcCheck(uint8_t* ucBuf, uint8_t ucLen);
 void DXL_PrintStatusBuf(void);
-void void DXL_PrintBuf(uint8_t* ucBuf, uint8_t ucLen, EPrintFormat ePrintFormat);											   
-#endif 
+void DXL_PrintBuf(uint8_t* ucBuf, uint8_t ucLen, EPrintFormat ePrintFormat);											   
+
 /* ---------------------------------------------------------------------------*/
 #endif

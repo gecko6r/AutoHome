@@ -12,7 +12,7 @@
 #include "controller.h"
 #include "usart.h"
 #include "math.h"
-
+#include "dynamixel.h"
 
 /* 机器人运动控制局部变量定义 ------------------------------------------------*/
 uint32_t uxServoPosBuf[ctrlSERVO_NUM];
@@ -22,27 +22,27 @@ uint32_t uxServoPosBuf[ctrlSERVO_NUM];
 /* 机器人类型及尺寸参数定义, 如果未定义，则定义为壁虎机器人*/
 #if defined  GECKO_ROBOT
 #undef HEXAPOD_ROBOT
-RobotType_t RobotType = GeckoRobot;
+Robot_t robotType = GeckoRobot;
 
 /* 关节0距离身体中心的距离 mm */
-static const float fJoint0_x = 38.75;
-static const float fJoint0_y = 114.0;
+static const double fJoint0_x = 38.75;
+static const double fJoint0_y = 114.0;
 
 
 /* 各关节连杆长度 mm */
-static const float l1 = 48.0;
-static const float l2 = 84.25;
-static const float l3 = 29;
-static const float l4 = 136;
-static const float l5 = 29;
+static const double l1 = 48.0;
+static const double l2 = 84.25;
+static const double l3 = 29;
+static const double l4 = 136;
+static const double l5 = 29;
 
 /* 脚掌初始位置数组（相对于身体中心,顺序左前右前左后右后，xyz，单位mm） */
-static const float fTipBasePosBuf[ctrlLEG_COUNT][ctrlJOINTS_PER_LEG] = 
+static const double TipBasePosBuf[ ctrlLEG_COUNT ][ 4 ] = 
 					{
-						-l1 - l2 - l3, 	l4, 	-l5, 0,
-						l1 + l2 + l3, 	l4, 	-l5, 0,
-						-l1 - l2 - l3, 	-l4, 	-l5, 0,
-						l1 + l2 + l3, 	-l4, 	-l5, 0,
+						-l1 - l2 - l3 - fJoint0_x, 	l4 + fJoint0_y, 	-l5, 0,
+						l1 + l2 + l3 + fJoint0_x, 	l4 + fJoint0_y, 	-l5, 0,
+						-l1 - l2 - l3 - fJoint0_x, 	-l4 - fJoint0_y, 	-l5, 0,
+						l1 + l2 + l3 + fJoint0_x, 	-l4 - fJoint0_y, 	-l5, 0,
 					};
 
 
@@ -58,18 +58,18 @@ RobotType_t RobotType = HexapodRobot;
 
 
 /* 机器人运动控制局部变量定义 ------------------------------------------------*/
-static TipPosType* xTipPosBuf[ctrlLEG_COUNT];
+static TipPos_t* xTipPosBuf[ctrlLEG_COUNT];
 
 
 //Set stall standing as initiate postion	
-static const float ServoPosOffset[ctrlSERVO_NUM] = {
+static const double ServoPosOffset[ctrlSERVO_NUM] = {
 	2048, 2048, 2048, 512,
 	2048, 2048, 2048, 512,
 	2048, 2048, 2048, 512,
 	2048, 2048, 2048, 512, 
 };
 
-static const float ServoPosDir[ctrlSERVO_NUM] = {
+static const double ServoPosDir[ctrlSERVO_NUM] = {
 	1, 1, -1, 1,
 	-1, -1, 1, 1,
 	1, -1, 1, 1,
@@ -78,10 +78,10 @@ static const float ServoPosDir[ctrlSERVO_NUM] = {
 
 static const uint32_t ServoMaxPos = 4096;
 
-/* 机器人运动控制局部函数定义 ------------------------------------------------*/
+/************************** 机器人运动控制全局变量声明 ************************/
 
 
-/* 机器人运动控制全局函数定义 ------------------------------------------------*/
+/************************** 机器人运动控制全局函数定义 ************************/
 
 /****
 	* @brief	计算每条腿运动学逆解，输入的足端位置必须以身体中心为原点，坐标系
@@ -89,7 +89,7 @@ static const uint32_t ServoMaxPos = 4096;
 	* @param  	xPointBuf：足端位置数组，按照腿的序号排列
 	* @retval 	关节角度数组，（角度制）
 	*/
-uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf )
+uint8_t CTRL_WriteTipPosToBuf( TipPos_t* xTipPosBuf )
 {
 	uint8_t i=0;
 	LegAngle_t xLegAngleBuf[ctrlLEG_COUNT];
@@ -104,15 +104,34 @@ uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf )
 	
 	return 0;
 }
-/* ---------------------------------------------------------------------------*/		
+/* ---------------------------------------------------------------------------*/	
+/****
+	* @brief	移动足端到目标位置，设初始位置为0
+	* @param  	xTipPosBuf：足端位置数组（大地坐标系）
+	* @retval 	无
+	*/
+void CTRL_SetTipsPos( TipPos_t xTipPosBuf[ ctrlLEG_COUNT ] )
+{
+	int i;
+	for( i = 0; i < ctrlLEG_COUNT; i++ )
+	{
+		xTipPosBuf[ i ].x += TipBasePosBuf[ i ][ 0 ];
+		xTipPosBuf[ i ].y += TipBasePosBuf[ i ][ 1 ];
+		xTipPosBuf[ i ].z += TipBasePosBuf[ i ][ 2 ];
+	}
 	
+	CTRL_WriteTipPosToBuf( xTipPosBuf );
+	DXL_SetAllGoalPos( uxServoPosBuf );
+
+}
+/****************************** 运动学逆解函数定义 ****************************/	
 /****
 	* @brief	计算每条腿运动学逆解，输入的足端位置必须以身体中心为原点，坐标系
 	*			为躯干坐标系，不同的机器人此函数需要被改写
 	* @param  	xPointBuf：足端位置数组，按照腿的序号排列
 	* @retval 	关节角度数组，（角度制）
 	*/
-void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT], 
+void CTRL_InverseKinemix( TipPos_t xTipPosBuf[ctrlLEG_COUNT], 
 						  LegAngle_t* xDstBuf)
 {
 	uint8_t i = 0;
@@ -125,10 +144,8 @@ void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT],
 		xTmp.z = xTipPosBuf[i].z;
 		
 		xDstBuf[i] = CTRL_SingleLegIK(xTmp);
-//		for( i=0; i<ctrlLEG_COUNT; i++ )
-
-		
 	}
+	
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -141,33 +158,32 @@ void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT],
 	*			单位mm）
 	* @retval 	返回单腿三个关节的角度值（角度制）
 	*/
-LegAngle_t CTRL_SingleLegIK( TipPosType xPoint )
+LegAngle_t CTRL_SingleLegIK( TipPos_t xPoint )
 {
 
 	
-	float x = xPoint.x - fJoint0_x;
-	float y = xPoint.y - fJoint0_y;
-	float z = xPoint.z;
+	double x = xPoint.x - fJoint0_x;
+	double y = xPoint.y - fJoint0_y;
+	double z = xPoint.z;
 	
 	LegAngle_t xAngle;
 	
 	/* 运动学逆解计算 */
-	float t3 = asin((-x*x - y*y - z*z - l1*l1 + 2.0*l1*sqrt(x*x+z*z-l5*l5) + l2*l2
+	double t3 = asin((-x*x - y*y - z*z - l1*l1 + 2.0*l1*sqrt(x*x+z*z-l5*l5) + l2*l2
 		+ l3*l3 + l4*l4 + l5*l5) / (2.0*l2*sqrt(l3*l3+l4*l4))) + asin(l3 / sqrt(l3*l3+l4*l4));
 	
 	
-    float t1 = -acos(l5 / sqrt((x*x + z*z))) - atan(x / z);
-	
-    float exp = sqrt(pow((l4*cos(t3) + l3*sin(t3)), 2.0)
+	double t1 = acos(-l5 / sqrt((x*x + z*z))) + acos( -z / sqrt( x*x + z*z ));
+
+    double exp = sqrt(pow((l4*cos(t3) + l3*sin(t3)), 2.0)
 				+ pow((l2 + l3*cos(t3) - l4*sin(t3)), 2.0));
-    float t2 = asin(y / exp) - asin((l4*cos(t3) + l3*sin(t3)) / exp);
-	
+    double t2 = asin(y / exp) - asin((l4*cos(t3) + l3*sin(t3)) / exp);
 	/* 弧度制转角度制 */
-	xAngle.rootJoint 	= t1 * 180.0 / PI;
+	xAngle.rootJoint 	= -180 + t1 * 180.0 / PI;
 	xAngle.midJoint  	= t2 * 180.0 / PI;
 	xAngle.endJoint 	= t3 * 180.0 / PI;
 	xAngle.stringJoint 	= 0.0;
-	
+		
 	return xAngle;
 	
 }
@@ -208,6 +224,7 @@ void CTRL_DoubleToPos( double* dSrcBuf, uint8_t ucCount, uint32_t* uxDstBuf )
 	for( i=0; i<ucCount; i++ ) 
 		uxDstBuf[i] = ServoPosDir[i] * dSrcBuf[i] * ServoMaxPos / 360.0
 						+ ServoPosOffset[i];
+	
 	
 }
 /* ---------------------------------------------------------------------------*/		

@@ -29,7 +29,7 @@ typedef enum
 {
 	GeckoRobot,
 	HexapodRobot
-}RobotType_t;
+}Robot_t;
 
 /* 机器人运动控制宏定义 ------------------------------------------------*/
 #define GECKO_ROBOT
@@ -41,35 +41,37 @@ typedef enum
 #define ctrlSERVO_NUM				( ( uint8_t ) 16 )
 #define ctrlJOINTS_PER_LEG			( ( uint8_t ) 4 )
 #define ctrlLEG_COUNT				( ( uint8_t ) 4 )
-#define ctrlJOINT1_UP_LIMIT			( ( float ) 95 )
-#define ctrlJOINT1_LOW_LIMIT		( ( float ) -95 )
+#define ctrlJOINT1_UP_LIMIT			( ( double ) 95 )
+#define ctrlJOINT1_LOW_LIMIT		( ( double ) -95 )
 #elif defined HEXAPOD_ROBOT
 #define ctrlSERVO_NUM				( ( uint8_t ) 18 )
 #define ctrlJOINTS_PER_LEG			( ( uint8_t ) 3 )
 #define ctrlLEG_COUNT				( ( uint8_t ) 6 )
 #endif
 
-/* 机器人运动控制全局变量声明 ------------------------------------------------*/
+
+/************************** 机器人运动控制全局变量声明 ************************/
 extern uint32_t uxServoPosBuf[ctrlSERVO_NUM];
 
-/* 机器人运动控制全局函数定义 ------------------------------------------------*/
-uint8_t CTRL_WriteTipPosToBuf( TipPosType* xTipPosBuf);
+/************************** 机器人运动控制全局函数定义 ************************/
+uint8_t CTRL_WriteTipPosToBuf( TipPos_t* xTipPosBuf);
 uint8_t CTRL_Action(void);
 uint8_t CTRL_ActionAfter_ms(uint16_t usNms);
 
-/* 运动学逆解函数定义 */
-void CTRL_InverseKinemix( TipPosType xTipPosBuf[ctrlLEG_COUNT], 
+void CTRL_SetTipsPos( TipPos_t xTipPosBuf[ ctrlLEG_COUNT ] );
+
+/****************************** 运动学逆解函数定义 ****************************/
+void CTRL_InverseKinemix( TipPos_t xTipPosBuf[ctrlLEG_COUNT], 
 						  LegAngle_t* xDstBuf);
-LegAngle_t CTRL_SingleLegIK( TipPosType xPoint );
+LegAngle_t CTRL_SingleLegIK( TipPos_t xPoint );
 void CTRL_LegAngTypeToDouble( LegAngle_t* xBuf, uint8_t ucCount, 
 							  double* dDstBuf );
-void CTRL_DoubleToPos( double* dSrcBuf, uint8_t ucCount, uint32_t* uxDstBuf );
+void CTRL_DoubleToPos( double* pbSrc, uint8_t ucCount, uint32_t* pbDst );
 
 void CTRL_PoseBasedIK( BodyPose_t xBodyPose, Point3d xBodyCenter, 
 					   Point3d* xTipGroundPos , LegAngle_t* xLegAngleBuf);
 
-
-/* 机器人运动控制局部函数定义 ------------------------------------------------*/
+/************************** 机器人运动控制局部函数定义 ************************/
 
 
 #endif
