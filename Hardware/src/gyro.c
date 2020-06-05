@@ -15,6 +15,18 @@
 #include "usart.h"
 #include "dataComm.h"
 
+/* 全局变量定义 */
+GyroAcc_t 		g_tGyroAcc;
+GyroAngVel_t 	g_tGyroAngVel;
+GyroAngle_t 	g_tGyroAngle;
+
+
+/* 局部变量定义 */
+static const uint8_t s_ucDataBufSize = 18;
+//加速度( x, y, z ), 速度( x, y, z ), 角度( x, y, z ), 每个数据2字节（低字节在前)
+static uint8_t s_ucaDataBuf[ s_ucDataBufSize ];
+
+
 /****
 	* @brief	初始化陀螺仪
 	* @param  	None
@@ -33,7 +45,7 @@ void GYRO_Init(void)
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t GYRO_RegSingleWrite( uint8_t ucRegAddr, uint16_t usSrc )
+uint8_t GYRO_WriteReg( uint8_t ucRegAddr, uint16_t usSrc )
 {
 	uint8_t ucBuf[2] ={0};
 	ucBuf[0] = LOW_BYTE(usSrc);
@@ -50,7 +62,7 @@ uint8_t GYRO_RegSingleWrite( uint8_t ucRegAddr, uint16_t usSrc )
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t GYRO_RegSingleRead( uint8_t ucRegAddr, uint16_t* pusDst )
+uint8_t GYRO_ReadReg( uint8_t ucRegAddr, uint16_t* pusDst )
 {
 	uint8_t ucBuf[2] = {0};
 	uint8_t ret = 0;
@@ -68,7 +80,7 @@ uint8_t GYRO_RegSingleRead( uint8_t ucRegAddr, uint16_t* pusDst )
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t GYRO_RegMultiWrite( uint8_t ucRegAddr,
+uint8_t GYRO_WriteBuf( uint8_t ucRegAddr,
 							uint8_t ucRegCount,
 							uint16_t* pusSrcBuf )
 {
@@ -97,7 +109,7 @@ uint8_t GYRO_RegMultiWrite( uint8_t ucRegAddr,
 	* @param  	pErr：错误信息指针
 	* @retval 	None
 	*/
-uint8_t GYRO_RegMultiRead(	uint8_t ucRegAddr,
+uint8_t GYRO_ReadBuf(	uint8_t ucRegAddr,
 							uint8_t ucRegCount,
 							uint16_t* pusDstBuf )
 {
@@ -129,7 +141,7 @@ uint8_t	GYRO_GetCurrTime( GyroTime_t* pTime)
 	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = GYRO_RegMultiRead(gyroYYMM, 4, usBuf );
+	ret = GYRO_ReadBuf(gyroREG_YYMM, 4, usBuf );
 	
 	pTime->ucYear 		= LOW_BYTE(usBuf[0]);
 	pTime->ucMonth 		= HIGH_BYTE(usBuf[0]);
@@ -150,14 +162,14 @@ uint8_t	GYRO_GetCurrTime( GyroTime_t* pTime)
 	*/
 uint8_t	GYRO_GetCurrAcc( GyroAcc_t* pAcc)
 {
-	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
+	short sBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = GYRO_RegMultiRead(gyroACC_AXISX, 3, usBuf );
+	ret = GYRO_ReadBuf(gyroREG_ACC_AXISX, 3, ( uint16_t* )sBuf );
 
-	pAcc->x = ((short)usBuf[0] / 32768.0 * 16.0 * 9.8);
-	pAcc->y = ((short)usBuf[1] / 32768.0 * 16.0 * 9.8);
-	pAcc->z = ((short)usBuf[2] / 32768.0 * 16.0 * 9.8);
+	pAcc->x = ((short)sBuf[0] / 32768.0 * 16.0 * 9.8);
+	pAcc->y = ((short)sBuf[1] / 32768.0 * 16.0 * 9.8);
+	pAcc->z = ((short)sBuf[2] / 32768.0 * 16.0 * 9.8);
 	
 	return ret;
 }
@@ -170,14 +182,14 @@ uint8_t	GYRO_GetCurrAcc( GyroAcc_t* pAcc)
 	*/
 uint8_t	GYRO_GetCurrAngVel( GyroAngVel_t* pAngleVel )
 {
-	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
+	short sBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = GYRO_RegMultiRead( gyroANGV_AXISX, 3, usBuf );
+	ret = GYRO_ReadBuf( gyroREG_ANGV_AXISX, 3, ( uint16_t* )sBuf );
 	
-	pAngleVel->x = usBuf[0] / 32768.0 * 2000.0;
-	pAngleVel->y = usBuf[1] / 32768.0 * 2000.0;
-	pAngleVel->z = usBuf[2] / 32768.0 * 2000.0;
+	pAngleVel->x = sBuf[0] / 32768.0 * 2000.0;
+	pAngleVel->y = sBuf[1] / 32768.0 * 2000.0;
+	pAngleVel->z = sBuf[2] / 32768.0 * 2000.0;
 	
 	return ret;
 }
@@ -190,14 +202,14 @@ uint8_t	GYRO_GetCurrAngVel( GyroAngVel_t* pAngleVel )
 	*/
 uint8_t	GYRO_GetCurrMag( GyroMag_t* pMag)
 {
-	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
+	short sBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = GYRO_RegMultiRead(gyroMAG_AXISX, 3, usBuf );
+	ret = GYRO_ReadBuf(gyroREG_MAG_AXISX, 3, ( uint16_t* )sBuf );
 	
-	pMag->roll 	= usBuf[0];
-	pMag->roll 	= usBuf[1];
-	pMag->roll 	= usBuf[2];
+	pMag->roll 	= sBuf[0];
+	pMag->pitch = sBuf[1];
+	pMag->yaw 	= sBuf[2];
 	
 	return ret;
 }
@@ -210,46 +222,65 @@ uint8_t	GYRO_GetCurrMag( GyroMag_t* pMag)
 	*/
 uint8_t	GYRO_GetCurrAng( GyroAngle_t* pAngle)
 {
-	uint16_t usBuf[GYRO_BUF_SIZE] = {0};
+	short sBuf[GYRO_BUF_SIZE] = {0};
 	uint8_t ret;
 	
-	ret = GYRO_RegMultiRead( gyroROLL, 3, usBuf );
+	ret = GYRO_ReadBuf( gyroREG_ROLL, 3, ( uint16_t* )sBuf );
 	
-	pAngle->pitch 	= (short)usBuf[0] / 32768.0 * 180.0;
-	pAngle->roll 	= (short)usBuf[1] / 32768.0 * 180.0;
-	pAngle->yaw 	= (short)usBuf[2] / 32768.0 * 180.0;
+	pAngle->pitch 	= sBuf[0] / 32768.0 * 180.0;
+	pAngle->roll 	= sBuf[1] / 32768.0 * 180.0;
+	pAngle->yaw 	= sBuf[2] / 32768.0 * 180.0;
 	
 	return ret;
 }	
 /* ---------------------------------------------------------------------------*/
 											   
 /****
-	* @brief	读取陀螺仪的加速度、角速度和角度数据，并存入数组
+	* @brief	读取陀螺仪状态信息( 加速度， 角速度， 角度 )
+	* @param  	无
+	* @retval 	0，无误；非0，有误
+	*/
+uint8_t GYRO_GetImuData( void )
+{
+	short buf[ 12 ];
+	uint8_t ret = 0;
+	uint8_t i;
+	uint8_t *p = ( uint8_t * )buf;
+	
+	ret = GYRO_ReadBuf( gyroREG_ACC_AXISX, 12, ( uint16_t* )buf );
+	if( ret )
+		return ret;
+	
+	g_tGyroAcc.x 		= buf[ 0 ] / 32768.0 * 16.0 * 9.8;
+	g_tGyroAcc.y 		= buf[ 1 ] / 32768.0 * 16.0 * 9.8;
+	g_tGyroAcc.z 		= buf[ 2 ] / 32768.0 * 16.0 * 9.8;
+	
+	g_tGyroAngVel.x 	= buf[ 3 ] / 32768.0 * 2000.0;
+	g_tGyroAngVel.y 	= buf[ 4 ] / 32768.0 * 2000.0;
+	g_tGyroAngVel.z 	= buf[ 5 ] / 32768.0 * 2000.0;
+	
+	g_tGyroAngle.roll	= buf[ 9 ] / 32768.0 * 180.0;
+	g_tGyroAngle.pitch	= buf[ 10 ] / 32768.0 * 180.0;
+	g_tGyroAngle.yaw	= buf[ 11 ] / 32768.0 * 180.0;
+	
+	memcpy( s_ucaDataBuf, buf, 12 );
+	memcpy( &s_ucaDataBuf[ 12 ], &buf[ 9 ], 6 );
+	
+	DC_SetBuffer( s_ucaDataBuf, 18, MSG_IMU );
+	
+	return ret;
+
+}
+/* ---------------------------------------------------------------------------*/
+											   
+/****
+	* @brief	读取陀螺仪的加速度、角速度和角度数据，并存入数组,
 	* @param  	ucpDst: 数组地址
 	* @retval 	大于0，表示读出的数据长度，小于0，则有错误
 	*/
-int GYRO_GetImuData( uint8_t *ucpDst )
+int GYRO_SetBuffer( void )
 {
-	uint8_t tmp = 0;
-	uint16_t usaTmp[ 3 ];
-	int res = 0;
-	
-	res = GYRO_RegMultiRead( gyroACC_AXISX, 3, usaTmp );
-	if( res )
-		return -res;
-	memcpy( ucpDst, usaTmp, 6 );
-	
-	res = GYRO_RegMultiRead( gyroANGV_AXISX, 3, usaTmp );
-	if( res )
-		return -res;
-	memcpy( ucpDst + 6, usaTmp, 6 );
-	
-	res = GYRO_RegMultiRead( gyroROLL, 3, usaTmp );
-	if( res )
-		return -res;
-	memcpy( ucpDst + 12, usaTmp, 6 );
-		
-	return 18;
+	return DC_SetBuffer( s_ucaDataBuf, 18, MSG_IMU );
 	
 }
 	

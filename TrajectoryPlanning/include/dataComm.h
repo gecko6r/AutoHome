@@ -14,9 +14,12 @@
 #include "sys.h"
 #include "gyro.h"
 
+#define comMIN_PACK_SIZE		( ( uint16_t ) 10 )
+
 #define comPACK_HEAD_1			( ( uint8_t ) 0xFF )
 #define comPACK_HEAD_2			( ( uint8_t ) 0xFE )
-#define comPACK_RESERVE			( ( uint8_t ) 0x00 )
+#define comPACK_HEAD_3			( ( uint8_t ) 0xFD )
+
 
 #define comBYTE_HEAD_1			0x00
 #define comBYTE_HEAD_2			0x01
@@ -29,6 +32,7 @@
 
 
 
+
 typedef enum dataCommInst
 {
 	Inst_Robot_Reset = 0x00,
@@ -38,6 +42,7 @@ typedef enum dataCommInst
 	Inst_Set_Step_Height,
 	Inst_Set_Step_Len,
 	Inst_Upload_Data,
+	Inst_MANI,
 	
 }COMM_Inst_E;
 
@@ -64,16 +69,39 @@ typedef struct CommRegBits
 	char servoPosInBuf 		: 1;	//bit1， 表示舵机位置数据是否在数组中
 	char servoCurrentInBuf 	: 1;	//bit0， 表示舵机电流数据是否在数组中
 }CommRegBits_t;
+
+typedef struct BotStatusUpdated
+{
+	char reserved				: 2;
+	char servoCurrentUpdated	: 1;
+	char servoVoltUpdated		: 1;
+	char servoPositionUpdated	: 1;
+	char servoVelocityUpdated	: 1;
+	char imuDataUpdated			: 1;
+	char systemInfoUpdated		: 1;
+}BotStatusUpdated_t;
 	
-typedef union ComReg{
+typedef union ComReg
+{
 	CommRegBits_t tReg;
 	uint8_t ucReg;
+	
 }ComReg_t;
+
+typedef enum packRecvStatus
+{
+	PackHeadRecved,
+	PackDataRecved,
+	PackTotalRecved,
+	PackRecvError,
+}PaclRecvStatus_e;
 	
 
 uint8_t DC_Init( void );
 uint8_t DC_SetBuffer(uint8_t *ucSrcBuf, uint8_t ucSize, COMM_MSG_E );
 uint8_t DC_Send( void );
+PaclRecvStatus_e DC_Recv( uint8_t size );
+uint8_t DC_GetPackParam( void );
 uint16_t CrcCheck( uint8_t* ucBuf, uint16_t usLen );
 
 

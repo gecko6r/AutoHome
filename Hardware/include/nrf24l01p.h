@@ -17,8 +17,8 @@
 #define nrfREPEAT_CNT				5
 
 
-#define nrfRCC						( nrfIO_CSN_RCC|\
-									  nrfIO_CE_RCC|\
+#define nrfRCC						( nrfIO_CSN_RCC |\
+									  nrfIO_CE_RCC |\
 									  nrfIO_IRQ_RCC )
 
 #define nrfIO_CSN_RCC				RCC_AHB1Periph_GPIOA
@@ -132,7 +132,7 @@ typedef enum PowerType
 #define nrfENAA_P1      	1 
 #define nrfENAA_P0      	0 
 
-#define nrfnrfERX_P5       	5 
+#define nrfERX_P5       	5 
 #define nrfERX_P4       	4 
 #define nrfERX_P3       	3 
 #define nrfERX_P2      		2 
@@ -190,7 +190,8 @@ typedef enum PowerType
 #define nrfEN_DYN_ACK    	0 
 #define nrfIRQ_ALL  ( (1<<RX_DR) | (1<<TX_DS) | (1<<MAX_RT) )
 
-
+extern volatile bool nrfIrqTriggered;
+extern uint16_t errCount;
 
 uint8_t NRF_Read_Reg( uint8_t RegAddr );
 void NRF_Write_Reg( uint8_t RegAddr, uint8_t Value );
@@ -209,19 +210,21 @@ uint8_t NRF_Read_Rx_Payload( uint8_t *pRxBuf );
 void NRF_Write_Tx_Payload_Ack( uint8_t *pTxBuf, uint8_t len );
 void NRF_Write_Tx_Payload_NoAck( uint8_t *pTxBuf, uint8_t len );
 void NRF_Write_Tx_Payload_InAck( uint8_t *pData, uint8_t len );
-void NRF_Set_TxAddr( const uint8_t *pAddr, uint8_t len );
-void NRF_Set_RxAddr( uint8_t PipeNum, const uint8_t *pAddr, uint8_t Len );
-void NRF_Set_Speed( nRf24l01SpeedType Speed );
-void NRF_Set_Power( nRf24l01PowerType Power );
-void RF24LL01_Write_Hopping_Point( uint8_t FreqPoint );
-void NRF_Set_Mode( nRf24l01ModeType Mode );
-void  NRF_check( void );
+void NRF_SetTxAddr( const uint8_t *pAddr, uint8_t len );
+void NRF_SetRxAddr( uint8_t PipeNum, const uint8_t *pAddr, uint8_t Len );
+void NRF_SetSpeed( nRf24l01SpeedType Speed );
+void NRF_SetPower( nRf24l01PowerType Power );
+void NRF_SetRF_CH( uint8_t FreqPoint );
+void NRF_SetMode( nRf24l01ModeType Mode );
+void NRF_check( void );
 
 
 uint8_t NRF_TxPacket( uint8_t *txbuf, uint8_t Length );
-uint8_t NRF_RxPacket( uint8_t *rxbuf );
+uint8_t NRF_RxPacket( uint8_t *rxbuf, uint8_t len );
 uint8_t NRF_SendData( uint8_t *pbSrc, uint16_t len );
 void NRF_GPIO_Init( void );
 void NRF_Init( void );	
+
+int quickSend( uint8_t *pbuf, uint16_t size );
 
 #endif

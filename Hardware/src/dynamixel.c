@@ -25,7 +25,7 @@
  
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <string.h>
 
 
 #include "controller.h"
@@ -49,6 +49,8 @@ double dServoStatusBuf[ dxlStatusCount ][ ctrlSERVO_NUM ];
 
 //舵机消息控制
 ServoMsg xServoMsg;
+
+uint8_t g_ucaDataRecved[ ctrlSERVO_NUM ];
 
 /*--------------------------------局部变量----------------------------------- */
 //存储舵机ID
@@ -97,35 +99,47 @@ static const char* cServoStatusMsgBuf[ dxlStatusCount ] = {
 	* @brief	初始化舵机通讯数组、串口、DMA，并使能舵机力矩
 	* @param  	ulBaudrate: 对应串口的波特率
 	* @param  	bTorqueState: 舵机力矩使能
-	* @retval 	None
+	* @retval 	返回在线舵机数目，或-1系统错误
 	*/
-void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
+int DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState)
 {
 	uint8_t i = 0;
+	int ret;
 	
 	//初始化舵机id数组
-	for (i=0; i<ctrlSERVO_NUM; i++)
-		ucDxlIdBuf[i] = i+1;
+	for ( i = 0; i < ctrlSERVO_NUM; i++ )
+		ucDxlIdBuf[ i ] = 0;
+	
+	xServoMsg = xCreateMsg( g_ucaServoRxBuffer );
 	
 	//初始化舵机通讯数组包头
-	g_ucaServoTxBuffer[eBYTE_HEADER_1]	= 0xff;
-	g_ucaServoTxBuffer[eBYTE_HEADER_2]	= 0xff;
-	g_ucaServoTxBuffer[eBYTE_HRADER_3]	= 0xfd;
-	g_ucaServoTxBuffer[eBYTE_RESV]		= 0x00;
+	g_ucaServoTxBuffer[ eBYTE_HEADER_1 ]	= 0xFF;
+	g_ucaServoTxBuffer[ eBYTE_HEADER_2 ]	= 0xFF;
+	g_ucaServoTxBuffer[ eBYTE_HRADER_3 ]	= 0xFD;
+	g_ucaServoTxBuffer[ eBYTE_RESV ]		= 0x00;
 	
 	//初始化电平转换芯片方向控制引脚
 	
 	//初始化串口及dma
-	USART1_Init(ulDxlBaudrateBuf[eBaudrate]);
+	USART1_Init( ulDxlBaudrateBuf[ eBaudrate ] );
 	DMA_ServoTxInit( dmaServoTxPeriphAddr, ( uint32_t )g_ucaServoTxBuffer, MAX_BUF_SIZE );
-//	DMA_ServoRxInit( dmaServoRxPeriphAddr, ( uint32_t )g_ucaServoRxBuffer, MAX_BUF_SIZE );
-	USART_DirIO_Init();
+
+	delay_ms( 200 );
+	ret = DXL_Ping();
+	if( ret > 0 )
+	{
+		printf("%d servos online\r\n", s_ucOnlineServoCount );
+		DXL_SetAllTorque( fTorqueState );
+	}
+	else
+	{
+		printf("Error, failed to initiate servos, please check the power supply OR cable connection!\r\n" );
+	}
+		
+	return ret;
+		
 	
-	//设定舵机力矩
-	if( fTorqueState )
-		DXL_SetAllTorque(fTorqueState);
 	
-	xServoMsg = xCreateMsg(g_ucaServoRxBuffer);
 
 }
 /* ---------------------------------------------------------------------------*/
@@ -195,6 +209,7 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 	uint8_t i = 0;
 	uint8_t j = 0;
+	uint8_t idCount = 0;
 	
 	/* 参数长度：数据长度（Para1~ParaN） + 附加长度（寄存器地址，寄存器长度）*/
 	uint16_t usParamLen = 2+PARAM_ADD_LEN + ucServoNum * ( usRegSize + 1 );
@@ -214,13 +229,17 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	g_ucaServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
 	g_ucaServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
 	
-	for(i=0; i<ucServoNum; i++) 
+	for(i=0; i< ctrlSERVO_NUM; i++) 
 	{
-		g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + i*(usRegSize+1)] = ucIdBuf[i];
+		if( ucDxlIdBuf[ i ] )
+		{
+			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + idCount*(usRegSize+1)] = ucIdBuf[i];
 
-		for(j=0; j<usRegSize; j++)
-			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR+i*(usRegSize+1)+1 + j] 
-												= nthByteOf(ulDataBuf[i], j);
+			for(j=0; j<usRegSize; j++)
+				g_ucaServoTxBuffer[SYNC_OPT_START_ADDR+idCount*(usRegSize+1)+1 + j] 
+													= nthByteOf(ulDataBuf[idCount], j);
+			idCount++;
+		}
 	}
 	
 	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
@@ -248,10 +267,13 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
     * @param  	usRegAddr：寄存器地址
     * @param  	usRegSize：寄存器大小(Byte)
     * @param  	ucId：舵机id数组
-    * @retval 	None
+	* @retval 	0：无误；非0：有误
     */
-void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
+int DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId, uint32_t *pDst)
 {
+	uint32_t ret  = 0;
+	uint8_t i = 0;
+	int start_byte;
 	/* 参数长度：寄存器地址+寄存器长度*/
 	uint16_t usParamLen = 4;
 	/* 包体长度：参数长度 + 附加长度3（8位指令 + 16位校验码）*/
@@ -261,18 +283,18 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
 	
 	uint16_t usDxlCrcCheck = 0U;
 	
-	g_ucaServoTxBuffer[eBYTE_ID]		= ucId;
-	g_ucaServoTxBuffer[eBYTE_LEN_L]	= LOW_BYTE(usPacketLen);
-	g_ucaServoTxBuffer[eBYTE_LEN_H]	= HIGH_BYTE(usPacketLen);
-	g_ucaServoTxBuffer[eBYTE_INST]		= dxlINST_Read;
-	g_ucaServoTxBuffer[BYTE_ParamN(1)]	= LOW_BYTE(usRegAddr);
-	g_ucaServoTxBuffer[BYTE_ParamN(2)]	= HIGH_BYTE(usRegAddr);
-	g_ucaServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
-	g_ucaServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
+	g_ucaServoTxBuffer[eBYTE_ID]			= ucId;
+	g_ucaServoTxBuffer[eBYTE_LEN_L]			= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]			= HIGH_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_INST]			= dxlINST_Read;
+	g_ucaServoTxBuffer[BYTE_ParamN(1)]		= LOW_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(2)]		= HIGH_BYTE(usRegAddr);
+	g_ucaServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
+	g_ucaServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
 	
 	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
-	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
-	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 2]	= LOW_BYTE(usDxlCrcCheck);
+	g_ucaServoTxBuffer[usPacketSize - 1] 	= HIGH_BYTE(usDxlCrcCheck);
 	
 /*	
 //////////////////////////////////////////////////////////////////////////////
@@ -285,12 +307,39 @@ void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId)
 //////////////////////////////////////////////////////////////////////////////
 */
 	
-	DMA_SendData( dmaServoTxStream, usPacketSize );
-	
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
 	xServoMsg.byteToRecv = dxlMIN_STATUS_PACK_LEN + usRegSize;
 	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
+	DMA_SendData( dmaServoTxStream, usPacketSize );
+	
+	
+	
+	while( !xServoMsg.bDataReady )
+		if( ret++ >= 9000 )
+		{
+			ret = -1;
+			break;
+		}
+	if( ret == -1 )
+		return 1;
+	
+	start_byte = DXL_FindFirstPackhead( xServoMsg.pDataBuf, xServoMsg.ucByteRecved );
+	if( start_byte < 0 )
+		return 2;
+	else
+	{
+		*pDst = 0;
+		for( i = 0; i < xServoMsg.usRegSize; i++ )
+		{
+			*pDst |= g_ucaServoRxBuffer[ start_byte + dxlStatusPackParamByte + i ] << ( i * 8 );
+		}
+	}
+	
+	xClearMsg( &xServoMsg );
+	return 0;
+
+	
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -304,6 +353,7 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 					uint8_t* ucIdBuf)
 {
 	uint8_t i = 0;
+	uint8_t idCount = 0;
 	/* 参数长度：寄存器地址+寄存器长度*/
 	uint16_t usParamLen = 4 +  ucServoNum;
 	/* 包体长度：参数长度 + 附加长度3（8位指令 + 16位校验码）*/
@@ -324,9 +374,13 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 	g_ucaServoTxBuffer[BYTE_ParamN(3)]	= LOW_BYTE(usRegSize);
 	g_ucaServoTxBuffer[BYTE_ParamN(4)]	= HIGH_BYTE(usRegSize);
 	
-	for(i=0; i<ucServoNum; i++)
+	for(i=0; i<ctrlSERVO_NUM; i++)
 	{
-		g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + i] = ucDxlIdBuf[i];
+		if( ucDxlIdBuf[ i ] )
+		{
+			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + idCount ] = ucDxlIdBuf[i];
+			idCount++;
+		}
 	}
 	
 	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
@@ -343,14 +397,12 @@ void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucServoNum,
 #endif
 //////////////////////////////////////////////////////////////////////////////
 */
-
+	xClearMsg( &xServoMsg );
 	xServoMsg.usRegAddr = usRegAddr;
 	xServoMsg.usRegSize = usRegSize;
 	xServoMsg.byteToRecv = ( s_ucOnlineServoCount ) * ( dxlMIN_STATUS_PACK_LEN + usRegSize );
 	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
 	DMA_SendData( dmaServoTxStream, usPacketSize );
-	
-
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -381,9 +433,9 @@ void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable)
 	* @brief	解析舵机返回参数，放入舵机状态数组,
 				此函数会调用下ClearMsg()清理结构体内容
 	* @param  	pServoMsg：消息结构体指针
-	* @retval 	0：无误，-1：数据包长度不足，-2：数据中无包头，-3：数据有误
+	* @retval 	返回有效数据包数目，或者-1：数据包长度不足，-2：数据中无包头，-3：数据有误
 	*/
-int DXL_GetPresentParam(ServoMsg* pServoMsg)
+int DXL_GetPresentParam( ServoMsg* pServoMsg )
 {
 	uint16_t usBufLen = pServoMsg->ucByteRecved;
 	uint16_t usRegAddr = pServoMsg->usRegAddr;
@@ -400,9 +452,6 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 	uint32_t statusVal = 0;
 	int i = 0;
 	
-//	static uint8_t buf[16];
-//	for( i = 0; i < 16; i++ )
-//	buf[ i ] = 0;
 	
 	if( usBufLen < dxlMIN_STATUS_PACK_LEN ) { return -1; }
 
@@ -412,15 +461,20 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 		statusBufCol = dxlCOL_Volt;
 		statusCoff = 0.10;						//电压，单位V
 	}
-	if(usRegAddr == dxlREG_Present_Current) 	
+	else if(usRegAddr == dxlREG_Present_Current) 	
 	{
 		statusBufCol = dxlCOL_Current;
 		statusCoff = 2.29;						//电流，单位mA
 	}
-	if(usRegAddr == dxlREG_Present_Velocity) 	
+	else if(usRegAddr == dxlREG_Present_Velocity) 	
 	{
 		statusBufCol = dxlCOL_Velocity;
 		statusCoff = 0.229*360.0/60.0;			//角速度
+	}
+	else if(usRegAddr == dxlREG_Present_Position) 	
+	{
+		statusBufCol = dxlCOL_Pos;
+		statusCoff = 1;			//角速度
 	}
 	while( statusPackLeftLen >= dxlMIN_STATUS_PACK_LEN )
 	{
@@ -430,14 +484,18 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 		if( packHeadIndex < 0 ) 
 		{
 			xClearMsg( pServoMsg );
-			return packHeadIndex; 
+			statusPackLeftLen = 0;
+			continue; 
 		}
 		//数组指针指向包头
 		ucSrcBuf += packHeadIndex;
 		
-		packLen =  7 + ucSrcBuf[ dxlStatusPackLenLowByte ] | ucSrcBuf[ dxlStatusPackLenHighByte ];
-		
-		
+		packLen =  7 + ( ucSrcBuf[ dxlStatusPackLenLowByte ] | ucSrcBuf[ dxlStatusPackLenHighByte ] << 8 );
+#ifdef IN_DEBUG_MODE
+		for( i = 0; i < packLen; i++ )
+			printf("%02X ", ucSrcBuf[ i ] );
+		printf( "\r\n");
+#endif
 		//如果收到自己发送的数据包，则跳出此次循环
 		if( ucSrcBuf[ dxlStatusPackInstByte ] != 0x55 )
 		{
@@ -470,7 +528,6 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 				statusVal |= ( ( ucSrcBuf[ dxlStatusPackParamByte + i ] ) << ( 8 * i ) );
 			}
 			
-			//
 			if( usRegAddr == dxlREG_Present_Current )
 				s_usaServoCurrentBuf[ id - 1 ] = statusVal;
 			if( usRegAddr == dxlREG_Present_Position )
@@ -482,16 +539,21 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 			
 		}
 		
+		else
+			ucDxlIdBuf[ id - 1 ] = id;
+		
 		
 
 		//写入舵机状态数组
 		if( usRegSize == 2 )
-			dServoStatusBuf [ statusBufCol ][ id - 1 ] = 
-								statusCoff * ( short ) ( statusVal & 0xffff );
+			dServoStatusBuf [ statusBufCol ][ id - 1 ] = statusCoff * ( short ) ( statusVal & 0xffff );
 		else if( usRegSize == 4 )
-			dServoStatusBuf [ statusBufCol ][ id - 1 ] = 
-								statusCoff * ( int ) statusVal;
+			dServoStatusBuf [ statusBufCol ][ id - 1 ] = ( int ) statusVal;
+
 		
+#ifdef IN_DEBUG_MODE
+		printf("id: %d, type: %d, value: %f\r\n", id, statusBufCol, dServoStatusBuf [ statusBufCol ][ id - 1 ] );
+#endif
 		//有效数据包数量++，数组起始指针后移，数组剩余空间减少
 		statusVal = 0;
 		validPackCount++;
@@ -499,12 +561,14 @@ int DXL_GetPresentParam(ServoMsg* pServoMsg)
 		statusPackLeftLen -= packLen;
 	}
 	
-	
-	
 	//重置数据包
 	xClearMsg( pServoMsg );
 	
-	if( !validPackCount ) { return -3; }
+	if( validPackCount == 0 ) 
+	{
+		return -3; 
+
+	}
 		
 	return validPackCount;		
 }	
@@ -649,7 +713,7 @@ void DXL_SetAllReturnDelay( uint16_t usReturnDelayUs )
     */
 void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize)
 {
-	DXL_RegSyncRead(usRegAddr, usRegSize, 16, ucDxlIdBuf);
+	DXL_RegSyncRead(usRegAddr, usRegSize, s_ucOnlineServoCount, ucDxlIdBuf);
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -670,7 +734,7 @@ void DXL_GetAllLedState(void)
 	* @param  	无
 	* @retval 	在线舵机数量
     */
-uint8_t DXL_Ping( void )
+int DXL_Ping( void )
 {
 	int count;
 	g_ucaServoTxBuffer[ eBYTE_ID ]			= ID_BROADCAST;
@@ -682,29 +746,29 @@ uint8_t DXL_Ping( void )
 	
 	xServoMsg.usRegAddr = dxlPing;
 	xServoMsg.usRegSize = 3;
-	xServoMsg.byteToRecv = 1;
+	xServoMsg.byteToRecv = dxlMIN_STATUS_PACK_LEN;
 	DXL_SetPacketReadEnable(&xServoMsg, ENABLE);
 	DMA_SendData( dmaServoTxStream, 10 );
 	
-	
-	delay_us ( 500 * 1000 );
-	
-	if( xServoMsg.bDataReady )
+	delay_ms( 2000 );
+
+	count = DXL_GetPresentParam( &xServoMsg );
+	s_ucOnlineServoCount = 0;
+	if( count > 0 )
 	{
-		count = DXL_GetPresentParam( &xServoMsg );
-		if( count > 0 )
-			s_ucOnlineServoCount = count;
-		return s_ucOnlineServoCount;
+		s_ucOnlineServoCount = count;
+		return count;
 	}
 	else
-		return 0;
+		return -1;
+
 }
 /* ---------------------------------------------------------------------------*/
 
 /****
 	* @brief	将舵机信息放入数组，低字节在前
 	* @param  	msgType：数据类型
-    * @retval 	无
+    * @retval 	0：无误， 小于0：有误
     */
 int DXL_SetComBuf( COMM_MSG_E msgType )
 {
@@ -712,6 +776,10 @@ int DXL_SetComBuf( COMM_MSG_E msgType )
 	uint8_t *p;
 	uint16_t size;
 	uint8_t regSize;
+	uint8_t bytesCopied = 0;
+	uint8_t servoOnlineCount = 0;
+	uint8_t servoCount = ctrlSERVO_NUM;
+	uint8_t ret;
 	uint8_t i;
 	if( msgType == MSG_SYS_Info || msgType == MSG_IMU )
 		return 1;
@@ -719,33 +787,47 @@ int DXL_SetComBuf( COMM_MSG_E msgType )
 	if( msgType == MSG_Servo_Current )
 	{
 		p = ( uint8_t *) s_usaServoCurrentBuf;
-		size =  sizeof( uint16_t ) * ctrlSERVO_NUM;
+		size =  sizeof( uint16_t );
 	}
 	else if( msgType == MSG_Servo_Pos )
 	{
 		p = ( uint8_t *) s_ulaServoPosBuf;
-		size = sizeof( uint32_t ) * ctrlSERVO_NUM;
+		size = sizeof( uint32_t );
 	}
 	else if( msgType == MSG_Servo_Vel )
 	{
 		p = ( uint8_t *) s_ulaServoVelBuf;
-		size = sizeof( uint32_t ) * ctrlSERVO_NUM;
+		size = sizeof( uint32_t );
 	}
 	else if( msgType == MSG_Servo_Volt )
 	{
 		p = ( uint8_t *) &s_usServoVolt;
 		size = sizeof( uint16_t );
+		memcpy( pbuf, p, size );
+		bytesCopied = 2;
 	}
 
 	
-	for( i = 0; i < size; i++ )
-		pbuf[ i ] = *p++;
-
-	DC_SetBuffer( pbuf, size, msgType );
-
-	DC_Send();
-
+	if( msgType != MSG_Servo_Volt )
+		for( i = 0; i < servoCount; i++ )
+		{
+			if( !ucDxlIdBuf[ i ] )
+			{
+				p += size;
+				continue;
+			}
+			//id号+数据
+			pbuf[ bytesCopied ] = ucDxlIdBuf[ i ];
+			memcpy( pbuf + bytesCopied + 1, p, size );
+			bytesCopied += size + 1;
+			servoOnlineCount++;
+			p += size;
+		}
 	
+	
+	ret = DC_SetBuffer( pbuf, bytesCopied, msgType );
+	if( ret )
+		return ( ret + 1 );
 	return 0;
 }
 
@@ -868,7 +950,7 @@ static void DXL_PrintBuf(uint8_t* ucBuf, uint8_t ucLen, EPrintFormat ePrintForma
 	while(ucLen--)	
 	{
 		if(ePrintFormat == eHex02) 
-			printf("%02X", *(ucBuf++));
+			printf("%02X ", *(ucBuf++));
 		else 
 			printf("%3d", *(ucBuf++));
 	}

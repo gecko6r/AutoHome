@@ -413,7 +413,6 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		if (usTimeCount > I2C_TIME_OUT)
 		{
 			I2C_GenerateSTOP(I2Cx, ENABLE); 
-			printf("write timeout\r\n");
 			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}
@@ -458,7 +457,6 @@ uint8_t I2C_MultiRead(I2C_TypeDef* I2Cx, uint8_t ucSlaveAddr, uint8_t ucRegAddr,
 		if (usTimeCount > I2C_TIME_OUT)
 		{
 			I2C_GenerateSTOP(I2Cx, ENABLE);
-			printf("send read timeout");	
 			return I2C_ERR_SendSlaveAddrTimeOut;
 		}
 	}

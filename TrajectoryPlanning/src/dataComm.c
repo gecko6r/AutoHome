@@ -16,7 +16,7 @@
   |Header1|Header2|Reserved||Length1|Length2Instruction|MsgType|       Param       |CRC1 |CRC2 |
   |____________________________________________________________|___________________|___________|
   |                                                            |                   |           |
-  | 0xFF  | 0xFE  |  0x00  | Len_L | Len_H |Instruction|MsgType|Param1|.....|ParamN|CRC_L|CRC_H|
+  | 0xFF  | 0xFE  |  0xFD  | Len_L | Len_H |Instruction|MsgType|Param1|.....|ParamN|CRC_L|CRC_H|
   |____________________________________________________________|___________________|___________|
   --------------------------------------------------------------------------------------------*/
 #include <string.h>
@@ -30,14 +30,22 @@
 #include "usart.h"
 
 /* 全局变量定义 */
-
+BotStatusUpdated_t g_tStatusUpdated;
 
 
 /* 局部变量定义 */
 static uint8_t s_ucaSendBuf[ MAX_BUF_SIZE ];
-static uint16_t s_usPackSize;
+static uint8_t s_ucaRecvBuf[ MAX_BUF_SIZE ];
+
+static uint16_t s_sendPackLen;
 static ComReg_t s_tComReg;
 static uint8_t s_ucPackSeq;
+
+static bool s_packHeadRecved = false;
+static uint16_t s_byteRecved;
+static uint16_t s_recvPackLen;
+static uint16_t s_packLeftLen;
+static bool s_packLenRecved = false;
 
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -63,6 +71,7 @@ uint8_t DC_Init(void)
 uint8_t DC_SetBuffer(uint8_t *ucpSrcBuf, uint8_t ucSize, COMM_MSG_E eMsgType)
 {
 	uint16_t crc_code = 0;
+	uint8_t *p = s_ucaSendBuf;
 	int i = 0;
 	
 	if( s_tComReg.ucReg & 0x3f )
@@ -75,26 +84,32 @@ uint8_t DC_SetBuffer(uint8_t *ucpSrcBuf, uint8_t ucSize, COMM_MSG_E eMsgType)
 		return 2;
 	
 	
-	//数组大小就是数据长度加上头尾一共9字节
-	s_usPackSize = ucSize + 9;
+	//数组大小：数据长度加上头尾的9字节
+	s_sendPackLen = ucSize + 9;
 	
 	//填充发送数组
 	s_ucaSendBuf[ comBYTE_HEAD_1 ] 		= comPACK_HEAD_1;
 	s_ucaSendBuf[ comBYTE_HEAD_2 ] 		= comPACK_HEAD_2;
-	s_ucaSendBuf[ comBYTE_RESERVE ] 	= s_ucPackSeq++;
-	s_ucaSendBuf[ comBYTE_LEN_LOW ] 	= LOW_BYTE( ucSize + 4 );
-	s_ucaSendBuf[ comBYTE_LEN_HIGH ] 	= HIGH_BYTE( ucSize + 4 );
+	s_ucaSendBuf[ comBYTE_RESERVE ] 	= comPACK_HEAD_3;
+	s_ucaSendBuf[ comBYTE_LEN_LOW ] 	= LOW_BYTE( s_sendPackLen - 5 );
+	s_ucaSendBuf[ comBYTE_LEN_HIGH ] 	= HIGH_BYTE( s_sendPackLen - 5 );
 	s_ucaSendBuf[ comBYTE_INSTRUCTION ] = Inst_Upload_Data;
 	s_ucaSendBuf[ comBYTE_MSG_TYPE ] 	= eMsgType;
 	
 	//拷贝数据
-	memcpy( s_ucaSendBuf + comBYTE_PARA_START, ucpSrcBuf, ucSize );
+	memcpy( p + comBYTE_PARA_START, ucpSrcBuf, ucSize );
 
 	
 	//校验码计算
-	crc_code = CrcCheck( s_ucaSendBuf, s_usPackSize - 2 );
-	s_ucaSendBuf[ s_usPackSize - 2 ] = LOW_BYTE( crc_code );
-	s_ucaSendBuf[ s_usPackSize - 1 ] = HIGH_BYTE( crc_code );	
+	crc_code = CrcCheck( s_ucaSendBuf, s_sendPackLen - 2 );
+	s_ucaSendBuf[ s_sendPackLen - 2 ] = LOW_BYTE( crc_code );
+	s_ucaSendBuf[ s_sendPackLen - 1 ] = HIGH_BYTE( crc_code );	
+	
+//	for( i = 0; i < s_sendPackLen; i++ )
+//	{
+//		printf("%02X ", s_ucaSendBuf[ i ] );
+//	}
+//	printf("\r\n");
 	
 	s_tComReg.ucReg |= ( 1 << eMsgType );
 	
@@ -112,15 +127,123 @@ uint8_t DC_Send( void )
 	if( !( s_tComReg.ucReg & 0x3f ) )
 		return 1;
 	
-	NRF_SendData( s_ucaSendBuf, s_usPackSize );
-//	printf("\t%d\t", s_usPackSize );
+	NRF_SendData( s_ucaSendBuf, s_sendPackLen );
+//	printf("\t%d\t", s_sendPackLen );
 	
 	s_tComReg.ucReg = 0x00;
 	
 	return 0;
 }
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	接收无线模块数据
+	* @param  	单次接收到的数据长度
+	* @retval 	PaclRecvStatus_e
+	*/	
+PaclRecvStatus_e DC_Recv( uint8_t size )
+{
+	uint8_t buf[ 32 ];
+	uint8_t bytes;
+	uint8_t *p = s_ucaRecvBuf;
+	bytes = NRF_RxPacket( buf, size );
+	
+	if( !bytes )
+		return PackRecvError;
 
-
+	//收到新的包头
+	if( buf[ 0 ] == 0xFF && buf[ 1 ] == 0xFE && buf[ 2 ] == 0xFD )
+	{
+		//如果数据量不足
+		if( bytes < comMIN_PACK_SIZE )
+		{
+			s_packHeadRecved = false;
+			s_packLeftLen = 0;
+			return PackRecvError;
+		}
+		
+		else
+		{
+			s_packHeadRecved = true ;
+			s_recvPackLen = 7 + ( buf[ comBYTE_LEN_HIGH ] << 8 | buf[ comBYTE_LEN_LOW ] );
+			s_packLeftLen = s_recvPackLen;
+			s_packLenRecved = true;
+			
+			//如果数据帧长度小于数据包长度
+			if( s_packLeftLen > bytes )
+			{
+				memcpy( p, buf, bytes );
+				s_packLeftLen -= bytes;
+				return PackDataRecved;
+				
+			}
+			//数据帧长度大于等于数据包长度
+			else
+			{
+				memcpy( p, buf, s_packLeftLen );
+				s_packLeftLen = 0;
+				return PackTotalRecved;
+			}
+		}
+			
+	}
+	
+	//如果数据帧不是以包头数据开头
+	else
+	{
+		//如果已经接收到了包头数据
+		if( s_packHeadRecved )
+		{
+			//如果数据帧长度小于数据包剩余长度
+			if( s_packLeftLen > bytes )
+			{
+				memcpy( p + s_byteRecved, buf, bytes );
+				s_packLeftLen -= bytes;
+				return PackDataRecved;
+			}
+			
+			//如果数据帧长度大于等于数据包剩余长度，则一个数据包已接收完整
+			else
+			{
+				memcpy( p + s_byteRecved, buf, s_packLeftLen );
+				s_packLeftLen = 0;
+				return PackTotalRecved;
+			}
+		}
+		
+		//否则为错误数据
+		else
+		{
+			
+		}
+			
+	}
+	
+	
+	
+}
+/* ---------------------------------------------------------------------------*/		
+											   
+/****
+	* @brief	拆包
+	* @param  	无
+	* @retval 	0， 无误； 非0， 有误
+	*/
+uint8_t DC_GetPackParam( void )
+{
+	uint8_t ret;
+	
+	uint16_t crc = CrcCheck( s_ucaRecvBuf, s_recvPackLen - 2 );
+	if( crc != ( s_ucaRecvBuf[ s_recvPackLen - 1 ] << 8 | s_ucaRecvBuf[ s_recvPackLen -2 ] ) )
+	{
+		ret = 1;
+	}
+	
+	
+	
+	
+	
+}
 /* ---------------------------------------------------------------------------*/
 
 /****

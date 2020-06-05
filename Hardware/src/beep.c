@@ -25,9 +25,10 @@ void beep( uint16_t beepHz, uint16_t times, uint16_t interval_ms )
 	assert_param( beepHz );
 	interval_us = 1000000 / beepHz;
 	
-	while( 1 )
+	
+	while( times-- )
 	{
-		t = times;
+		t = interval_ms * 1000 / interval_us;
 		while( t-- )
 		{
 			GPIO_SetBits( beepGPIO, beepPin );

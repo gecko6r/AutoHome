@@ -216,15 +216,16 @@ extern uint8_t g_ucaServoTxBuffer[ HALF_BUF_SIZE ];
 extern uint8_t g_ucaServoRxBuffer[ HALF_BUF_SIZE ];
 extern double dServoStatusBuf[ dxlStatusCount ][ ctrlSERVO_NUM ];
 extern ServoMsg xServoMsg;
+extern uint8_t g_ucaDataRecved[ ctrlSERVO_NUM ];
 
 /* Functions Definition ------------------------------------------------------*/
-void DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState);
+int DXL_ServoInit(EDxlBaudrate eBaudrate, FunctionalState fTorqueState);
 
 void DXL_RegWrite(uint16_t usRegAddr, uint16_t usRegSize, 
 					uint32_t ulData, uint8_t ucId);
 void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize, 
 					uint8_t ucServoNum, uint32_t* ulDataBuf, uint8_t* ucIdBuf);
-void DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId);
+int DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId, uint32_t *pDst);
 void DXL_RegSyncRead(uint16_t usRegAddr, uint16_t usRegSize, 
 						uint8_t ucServoNum, uint8_t* ucIdBuf);
 void DXL_SetPacketReadEnable(ServoMsg* pServoMsg, FunctionalState fWriteEnable);
@@ -250,7 +251,7 @@ void DXL_SetAllLedState(FunctionalState fLedState);
 /* Servo Registers Read Functions Definition ---------------------------------*/
 void DXL_GetRegState(uint16_t usRegAddr, uint16_t usRegSize);
 void DXL_GetAllLedState(void);
-uint8_t DXL_Ping( void );
+int DXL_Ping( void );
 int DXL_SetComBuf( COMM_MSG_E msgType );
 
 /* Dynamixel Servo Message Functions Definition ------------------------------*/
