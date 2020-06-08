@@ -184,7 +184,6 @@ void USART2_IRQHandler(void)
     */ 
 void USART1_IRQHandler(void) 
 {	
-	static uint8_t count = 0;
 	static u8 data = 0;
 
 	//串口2接收中断标志置位
@@ -211,6 +210,7 @@ void USART1_IRQHandler(void)
 		}
 		//这里是读一次接收寄存器以清除IDLE标志（详见手册）
 		data  = USART_ReceiveData(USART1);
+		data = data;
 //		//关闭LED
 //		LED = 1;
 		

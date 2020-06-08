@@ -244,29 +244,27 @@ uint8_t GYRO_GetImuData( void )
 {
 	short buf[ 12 ];
 	uint8_t ret = 0;
-	uint8_t i;
-	uint8_t *p = ( uint8_t * )buf;
 	
 	ret = GYRO_ReadBuf( gyroREG_ACC_AXISX, 12, ( uint16_t* )buf );
 	if( ret )
 		return ret;
 	
-	g_tGyroAcc.x 		= buf[ 0 ] / 32768.0 * 16.0 * 9.8;
-	g_tGyroAcc.y 		= buf[ 1 ] / 32768.0 * 16.0 * 9.8;
-	g_tGyroAcc.z 		= buf[ 2 ] / 32768.0 * 16.0 * 9.8;
+	g_tGyroAcc.x 		= buf[ 0 ] / 32768.0 * 8.0 * 9.8;
+	g_tGyroAcc.y 		= buf[ 1 ] / 32768.0 * 8.0 * 9.8;
+	g_tGyroAcc.z 		= buf[ 2 ] / 32768.0 * 8.0 * 9.8;
 	
 	g_tGyroAngVel.x 	= buf[ 3 ] / 32768.0 * 2000.0;
 	g_tGyroAngVel.y 	= buf[ 4 ] / 32768.0 * 2000.0;
 	g_tGyroAngVel.z 	= buf[ 5 ] / 32768.0 * 2000.0;
 	
-	g_tGyroAngle.roll	= buf[ 9 ] / 32768.0 * 180.0;
-	g_tGyroAngle.pitch	= buf[ 10 ] / 32768.0 * 180.0;
+	g_tGyroAngle.pitch	= buf[ 9 ] / 32768.0 * 180.0;
+	g_tGyroAngle.roll	= buf[ 10 ] / 32768.0 * 180.0;
 	g_tGyroAngle.yaw	= buf[ 11 ] / 32768.0 * 180.0;
 	
 	memcpy( s_ucaDataBuf, buf, 12 );
 	memcpy( &s_ucaDataBuf[ 12 ], &buf[ 9 ], 6 );
 	
-	DC_SetBuffer( s_ucaDataBuf, 18, MSG_IMU );
+	DC_SetBuffer( s_ucaDataBuf, 18, eMsgIMU );
 	
 	return ret;
 
@@ -280,9 +278,6 @@ uint8_t GYRO_GetImuData( void )
 	*/
 int GYRO_SetBuffer( void )
 {
-	return DC_SetBuffer( s_ucaDataBuf, 18, MSG_IMU );
+	return DC_SetBuffer( s_ucaDataBuf, 18, eMsgIMU );
 	
 }
-	
-	
-	

@@ -12,14 +12,15 @@
   |                                                            |                   |           |
   |                                  7                         |     para_len      |     2     |
   |____________________________________________________________|___________________|___________|
-  |                                                            |                   |           |  
-  |Header1|Header2|Reserved||Length1|Length2Instruction|MsgType|       Param       |CRC1 |CRC2 |
-  |____________________________________________________________|___________________|___________|
-  |                                                            |                   |           |
+  |                                                            |                   |     |     |  
+  |Header1|Header2|Reserved||Length1|Length2Instruction|MsgType|       Param       |CRC1 | CRC2|
+  |____________________________________________________________|___________________|_____|_____|
+  |                                                            |                   |     |     |
   | 0xFF  | 0xFE  |  0xFD  | Len_L | Len_H |Instruction|MsgType|Param1|.....|ParamN|CRC_L|CRC_H|
-  |____________________________________________________________|___________________|___________|
+  |____________________________________________________________|___________________|_____|_____|
   --------------------------------------------------------------------------------------------*/
 #include <string.h>
+#include <stdlib.h>
 
 #include "FreeRTOS.h"
 #include "queue.h"
@@ -39,13 +40,11 @@ static uint8_t s_ucaRecvBuf[ MAX_BUF_SIZE ];
 
 static uint16_t s_sendPackLen;
 static ComReg_t s_tComReg;
-static uint8_t s_ucPackSeq;
 
 static bool s_packHeadRecved = false;
-static uint16_t s_byteRecved;
+static uint16_t s_bytesRecved;
 static uint16_t s_recvPackLen;
-static uint16_t s_packLeftLen;
-static bool s_packLenRecved = false;
+static bool s_packTotalRecved = false;
 
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -72,7 +71,6 @@ uint8_t DC_SetBuffer(uint8_t *ucpSrcBuf, uint8_t ucSize, COMM_MSG_E eMsgType)
 {
 	uint16_t crc_code = 0;
 	uint8_t *p = s_ucaSendBuf;
-	int i = 0;
 	
 	if( s_tComReg.ucReg & 0x3f )
 		return 1;
@@ -93,7 +91,7 @@ uint8_t DC_SetBuffer(uint8_t *ucpSrcBuf, uint8_t ucSize, COMM_MSG_E eMsgType)
 	s_ucaSendBuf[ comBYTE_RESERVE ] 	= comPACK_HEAD_3;
 	s_ucaSendBuf[ comBYTE_LEN_LOW ] 	= LOW_BYTE( s_sendPackLen - 5 );
 	s_ucaSendBuf[ comBYTE_LEN_HIGH ] 	= HIGH_BYTE( s_sendPackLen - 5 );
-	s_ucaSendBuf[ comBYTE_INSTRUCTION ] = Inst_Upload_Data;
+	s_ucaSendBuf[ comBYTE_INSTRUCTION ] = eInstUploadData;
 	s_ucaSendBuf[ comBYTE_MSG_TYPE ] 	= eMsgType;
 	
 	//拷贝数据
@@ -141,86 +139,80 @@ uint8_t DC_Send( void )
 	* @param  	单次接收到的数据长度
 	* @retval 	PaclRecvStatus_e
 	*/	
-PaclRecvStatus_e DC_Recv( uint8_t size )
+int DC_Recv( uint8_t size )
 {
 	uint8_t buf[ 32 ];
 	uint8_t bytes;
 	uint8_t *p = s_ucaRecvBuf;
-	bytes = NRF_RxPacket( buf, size );
+	uint16_t crc;
+	int index;
+	int ret;
 	
+	
+	bytes = NRF_RxPacket( buf, size );
 	if( !bytes )
-		return PackRecvError;
+		return ePackRecvError;
+	
+	for( index = 0; index < bytes; index++ )
+		printf("%02X ", buf[ index ] );
+	printf("\r\n");
+	
+	memcpy( &s_ucaRecvBuf[ s_bytesRecved ], buf, bytes );
+	s_bytesRecved += bytes;
 
-	//收到新的包头
-	if( buf[ 0 ] == 0xFF && buf[ 1 ] == 0xFE && buf[ 2 ] == 0xFD )
+	//没有收到包头
+	if( !s_packHeadRecved )
 	{
-		//如果数据量不足
-		if( bytes < comMIN_PACK_SIZE )
-		{
-			s_packHeadRecved = false;
-			s_packLeftLen = 0;
-			return PackRecvError;
-		}
-		
-		else
+		if( p[ 0 ] == 0xFF && p[ 1 ] == 0xFE && p[ 2 ] == 0xFD )
 		{
 			s_packHeadRecved = true ;
-			s_recvPackLen = 7 + ( buf[ comBYTE_LEN_HIGH ] << 8 | buf[ comBYTE_LEN_LOW ] );
-			s_packLeftLen = s_recvPackLen;
-			s_packLenRecved = true;
-			
-			//如果数据帧长度小于数据包长度
-			if( s_packLeftLen > bytes )
-			{
-				memcpy( p, buf, bytes );
-				s_packLeftLen -= bytes;
-				return PackDataRecved;
-				
-			}
-			//数据帧长度大于等于数据包长度
-			else
-			{
-				memcpy( p, buf, s_packLeftLen );
-				s_packLeftLen = 0;
-				return PackTotalRecved;
-			}
+			s_recvPackLen = 5 + ( p[ comBYTE_LEN_HIGH ] << 8 | p[ comBYTE_LEN_LOW ] );
+			ret = ePackHeadRecved;
 		}
-			
-	}
-	
-	//如果数据帧不是以包头数据开头
-	else
-	{
-		//如果已经接收到了包头数据
-		if( s_packHeadRecved )
-		{
-			//如果数据帧长度小于数据包剩余长度
-			if( s_packLeftLen > bytes )
-			{
-				memcpy( p + s_byteRecved, buf, bytes );
-				s_packLeftLen -= bytes;
-				return PackDataRecved;
-			}
-			
-			//如果数据帧长度大于等于数据包剩余长度，则一个数据包已接收完整
-			else
-			{
-				memcpy( p + s_byteRecved, buf, s_packLeftLen );
-				s_packLeftLen = 0;
-				return PackTotalRecved;
-			}
-		}
-		
-		//否则为错误数据
 		else
 		{
-			
+			s_bytesRecved = 0;
+			ret = ePackRecvError;
 		}
-			
+	}	
+	
+	//如果已经收到包头
+	if( s_packHeadRecved )
+	{
+		//如果数据帧长度小于数据包剩余长度
+		if( s_bytesRecved >= s_recvPackLen )
+		{
+			s_packTotalRecved = true;
+			ret = ePackDataRecved;
+		}			
 	}
 	
-	
-	
+	if( s_packTotalRecved )
+	{
+		//CRC校验
+		crc = CrcCheck( p, s_recvPackLen - 2 );
+		if( crc != ( p[ s_recvPackLen - 1 ] << 8 | p[ s_recvPackLen - 2 ] ) )
+		{
+			ret = ePackCrcError;
+			
+			//找到下一个包头，删除之前的数据
+			index = DC_FindFirtPackHead( p + 3, s_bytesRecved - 3 );
+			if( index >= 0 )
+			{
+				memmove( p, p + index, s_bytesRecved - index );
+				s_bytesRecved -= index;
+			}
+			else
+				s_bytesRecved = 0;	
+		}
+		else
+		{
+			ret = ePackTotalRecved;
+			DC_GetPackParam( p + 5, s_recvPackLen - 7 );
+			s_bytesRecved -= s_recvPackLen;
+		}	
+	}	
+	return ret;	
 }
 /* ---------------------------------------------------------------------------*/		
 											   
@@ -229,20 +221,47 @@ PaclRecvStatus_e DC_Recv( uint8_t size )
 	* @param  	无
 	* @retval 	0， 无误； 非0， 有误
 	*/
-uint8_t DC_GetPackParam( void )
+uint8_t DC_GetPackParam( uint8_t *pbuf, uint16_t size )
 {
-	uint8_t ret;
+	uint8_t inst, msg;
+	int param;
 	
-	uint16_t crc = CrcCheck( s_ucaRecvBuf, s_recvPackLen - 2 );
-	if( crc != ( s_ucaRecvBuf[ s_recvPackLen - 1 ] << 8 | s_ucaRecvBuf[ s_recvPackLen -2 ] ) )
+	inst = pbuf[ 0 ];
+	msg = pbuf[ 1 ];
+	
+	if( inst == eInstMANI )
 	{
-		ret = 1;
+		if( msg == eMsgAdhesionCtrl )
+		{
+			param = pbuf[ 2 ];
+			printf("param: %02X\r\n", param );
+			CTRL_SetAdhesionPos( param );
+		}
 	}
 	
+	return 0;	
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	找到数组中的第一个包头
+	* @param  	pbuf：数组
+	* @param  	size：数据长度
+    * @retval 	非负：包头起始位置；负数：错误
+    */
+int DC_FindFirtPackHead( uint8_t *pbuf, uint16_t size )
+{
+	int index = 0;
+	while( size-- >= comMIN_PACK_SIZE )
+	{
+		if( *pbuf == 0xFF && *( pbuf + 1 ) == 0xFE && *( pbuf + 2 ) == 0xFD )
+			return index;
+		
+		pbuf++;
+		index++;
+	}
 	
-	
-	
-	
+	return -1;
 }
 /* ---------------------------------------------------------------------------*/
 
@@ -298,4 +317,149 @@ uint16_t CrcCheck(uint8_t* ucBuf, uint16_t usLen)
     }
 
     return usCrcAccum;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	环形缓冲区创建函数
+	* @param  	prbuf：环形缓冲区结构体指针
+	* @retval 	0:创建成功；非0：创建失败
+    */
+int RingBuf_Create( RingBuf_t *prbuf, int size )
+{
+	uint8_t *p;
+	
+	if( size <= 0 )
+		return eRingBufCreateError;
+	
+	p = malloc( size );
+	if( p == NULL )
+		return eRingBufCreateError;
+	prbuf->pbuf = p;
+	prbuf->head = 0;
+	prbuf->tail = 0;
+	prbuf->size = size;
+	
+	return eRingBufNoError;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	环形缓冲区添加数据
+	* @param  	prbuf：环形缓冲区结构体指针
+	* @param  	pbSrc：数据数组
+	* @param  	size：数据数组大小
+	* @retval 	0:添加数据成功；非0：添加失败
+	* @note		如果不能成功添加数据，此次操作会直接作废（原子操作）
+    */
+int RingBuf_Append( RingBuf_t *prbuf, uint8_t *pbSrc, uint16_t len )
+{
+	uint8_t *p = prbuf->pbuf;
+	uint16_t dataLeftLen;
+	uint16_t ringBufAvailableLen;
+	int head, tail, size;
+	
+	if( prbuf->pbuf == NULL )
+		return eRingBufNull;
+	
+	ringBufAvailableLen = RingBuf_AvailableBytes( prbuf );
+	if( len > ringBufAvailableLen )
+		return eRingBufOverFlow;
+	
+	head = prbuf->head;
+	tail = prbuf->tail;
+	size = prbuf->size;
+	
+	//尾指针在头指针后
+	if( tail > head )
+	{
+		//后部剩余空间不足以储存全部数据
+		if( ( size - tail ) < len )
+		{
+			//如果尾指针指向数组末尾，则空余空间集中在开头
+			if( tail ==  size )
+				memcpy( p, pbSrc, len );
+			//否则，剩余空间在开头和结尾
+			else
+			{
+				memcpy( p + tail, pbSrc, ( size - tail ) );
+				memcpy( p, pbSrc + ( size - tail ), len - ( size - tail ) );
+			}
+		}
+		//后部剩余空间足够存储
+		else
+			memcpy( p, pbSrc, len );
+	}
+	//尾指针在头指针前
+	else
+	{
+		memcpy( p + head, pbSrc, len );
+	}
+	
+	prbuf->tail = ( tail + len ) % size;
+	
+	return eRingBufNoError;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	环形缓冲区删除数据
+	* @param  	prbuf：环形缓冲区结构体指针
+	* @param	start：删除元素起始位置
+	* @param  	len：要删除的数据长度
+	* @retval 	0:数据删除成功；非0：删除失败
+	* @note		如果不能成功删除数据，此次操作会直接取消（原子操作）
+    */		
+int RingBuf_Remove( RingBuf_t *prbuf, uint16_t len )
+{
+	int bytesInBuf = RingBuf_UsedBytes( prbuf );
+	
+	if( prbuf->pbuf == NULL || prbuf->size == 0 )
+		return eRingBufNull;
+	
+	if( len > bytesInBuf )
+		return eRingBufUnderFlow;
+	
+	prbuf->head = ( prbuf->head + len ) % prbuf->size;
+	
+	return eRingBufNoError;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	查询数组已用空间
+	* @param  	prbuf：环形缓冲区结构体指针
+	* @retval 	非负：返回环形数组已用空间；负数：返回错误
+    */	
+int RingBuf_UsedBytes( RingBuf_t *prbuf )
+{
+	if( prbuf->pbuf == NULL || prbuf->size == 0 )
+		return eRingBufNull;
+	
+	return ( prbuf->tail + prbuf->size - prbuf->head ) % prbuf->size;
+}
+/* ---------------------------------------------------------------------------*/
+
+/****
+	* @brief	查询数组可用空间
+	* @param  	prbuf：环形缓冲区结构体指针
+	* @retval 	非负：返回环形数组可用空间；负数：返回错误
+    */	
+int RingBuf_AvailableBytes( RingBuf_t *prbuf )
+{
+	int bytes = RingBuf_UsedBytes( prbuf );
+	if( bytes < 0 )
+		return bytes;
+	
+	return prbuf->size - bytes;
+}
+
+void RingBuf_Clear( RingBuf_t *prbuf )
+{
+	if( prbuf->pbuf != NULL )
+		free( prbuf->pbuf );
+	
+	prbuf->head = 0;
+	prbuf->tail = 0;
+	prbuf->size = 0;
 }

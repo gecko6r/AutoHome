@@ -747,23 +747,14 @@ uint8_t NRF_TxPacket( uint8_t *txbuf, uint8_t Length )
   */ 
 uint8_t NRF_RxPacket( uint8_t *rxbuf, uint8_t len )
 {
-	uint8_t l_Status = 0, l_RxLength = 0, l_100MsTimes = 0;
+	uint8_t status;
 	
-	NRF_SET_CS_LOW( );		//片选
-	SPI_ByteIO( nrfCMD_FLUSH_RX );
-	NRF_SET_CS_HIGH( );
+	NRF_Read_Buf( nrfCMD_R_RX_PLD, rxbuf, len );
+	NRF_Write_Reg( nrfCMD_FLUSH_RX, 0xFF );
+	status = NRF_Read_Reg( nrfREG_STATUS );
+	NRF_Write_Reg( nrfREG_STATUS, status );				//没有收到数据	
 	
-	l_Status = NRF_Read_Reg( nrfREG_STATUS );		//读状态寄存器
-	NRF_Write_Reg( nrfREG_STATUS, l_Status );		//清中断标志
-	if( l_Status & nrfRX_OK)	//接收到数据
-	{
-		
-		NRF_Read_Buf( nrfCMD_R_RX_PLD, rxbuf, len );	//接收到数据 
-		NRF_Write_Reg( nrfCMD_FLUSH_RX, 0xff );				//清除RX FIFO
-		return l_RxLength;
-	}	
-	
-	return 0;				//没有收到数据	
+	return len;
 }
 /* ---------------------------------------------------------------------------*/	
 

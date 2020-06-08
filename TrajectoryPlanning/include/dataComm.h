@@ -35,27 +35,30 @@
 
 typedef enum dataCommInst
 {
-	Inst_Robot_Reset = 0x00,
-	Inst_Set_Torque,
-	Inst_Set_SPEED,
-	Inst_Set_COMP_Mode,
-	Inst_Set_Step_Height,
-	Inst_Set_Step_Len,
-	Inst_Upload_Data,
-	Inst_MANI,
+	eInstRobotReset = 0,
+    eInstSetTorque,
+    eInstSetSPEED,
+    eInstSetCompMode,
+    eInstSetStepHeight,
+    eInstSetStepLen,
+    eInstUploadData,
+    eInstMANI,
 	
 }COMM_Inst_E;
 
 
 typedef enum msgTpye
 {
-	MSG_Servo_Current = 0,
-	MSG_Servo_Pos,
-	MSG_Servo_Vel,
-	MSG_Servo_Volt,
-	MSG_IMU,
-	MSG_SYS_Info,
+	eMsgServoCurrent = 0,
+    eMsgServoPos,
+    eMsgServoVel,
+    eMsgServoVolt,
+    eMsgIMU,
+    eMsgSystemInfo,
+    eMsgJointCtrl,
+    eMsgAdhesionCtrl,
 	
+		
 }COMM_MSG_E;
 
 //上下位机通讯服务寄存器，用于表示当前缓冲区存储的数据包
@@ -90,19 +93,53 @@ typedef union ComReg
 
 typedef enum packRecvStatus
 {
-	PackHeadRecved,
-	PackDataRecved,
-	PackTotalRecved,
-	PackRecvError,
-}PaclRecvStatus_e;
+	ePackHeadRecved,
+	ePackDataRecved,
+	ePackTotalRecved,
+	ePackRecvError,
+	ePackCrcError,
+}PackRecvStatus_e;
 	
+
+enum DataCommError
+{
+	CrcIncorrect,
+	
+};
+
+typedef struct RingBuffer
+{
+	uint8_t *pbuf;
+	int head;
+	int tail;
+	int size;
+}RingBuf_t;
+
+enum RingBufferError
+{
+	eRingBufNoError 		= 0,
+	eRingBufCreateError 	= -1,
+	eRingBufNull			= -2,
+	eRingBufUnderFlow		= -3,
+	eRingBufOverFlow		= -4,
+};
+
 
 uint8_t DC_Init( void );
 uint8_t DC_SetBuffer(uint8_t *ucSrcBuf, uint8_t ucSize, COMM_MSG_E );
 uint8_t DC_Send( void );
-PaclRecvStatus_e DC_Recv( uint8_t size );
-uint8_t DC_GetPackParam( void );
+int DC_Recv( uint8_t size );
+uint8_t DC_GetPackParam( uint8_t *pbuf, uint16_t size );
+int DC_FindFirtPackHead( uint8_t *pbuf, uint16_t size );
 uint16_t CrcCheck( uint8_t* ucBuf, uint16_t usLen );
+
+/***********************************环形缓冲区函数*****************************/
+int RingBuf_Create( RingBuf_t* prbuf, int size );
+int RingBuf_Append( RingBuf_t *prbuf, uint8_t *pbSrc, uint16_t len );
+int RingBuf_Remove( RingBuf_t *prbuf, uint16_t len );
+int RingBuf_UsedBytes( RingBuf_t *prbuf );
+int RingBuf_AvailableBytes( RingBuf_t *prbuf );
+void RingBuf_Clear( RingBuf_t *prbuf );
 
 
 

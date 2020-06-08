@@ -59,6 +59,7 @@ uint8_t CTRL_Action(void);
 uint8_t CTRL_ActionAfter_ms(uint16_t usNms);
 
 void CTRL_SetTipsPos( TipPos_t xTipPosBuf[ ctrlLEG_COUNT ] );
+void CTRL_SetAdhesionPos( int pos );
 
 /****************************** 运动学逆解函数定义 ****************************/
 void CTRL_InverseKinemix( TipPos_t xTipPosBuf[ctrlLEG_COUNT], 

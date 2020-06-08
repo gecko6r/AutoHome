@@ -35,6 +35,9 @@ static const double l2 = 84.25;
 static const double l3 = 29;
 static const double l4 = 136;
 static const double l5 = 29;
+//static double stepLen;
+//static double stepHeight;
+//static double speed;
 
 /* 脚掌初始位置数组（相对于身体中心,顺序左前右前左后右后，xyz，单位mm） */
 static const double TipBasePosBuf[ ctrlLEG_COUNT ][ 4 ] = 
@@ -43,8 +46,16 @@ static const double TipBasePosBuf[ ctrlLEG_COUNT ][ 4 ] =
 						l1 + l2 + l3 + fJoint0_x, 	l4 + fJoint0_y, 	-l5, 0,
 						-l1 - l2 - l3 - fJoint0_x, 	-l4 - fJoint0_y, 	-l5, 0,
 						l1 + l2 + l3 + fJoint0_x, 	-l4 - fJoint0_y, 	-l5, 0,
+						
 					};
 
+static int s_feetPosLimit[ 4 ][ 2 ] = 
+					{
+						2048, 4600,
+						2048, 4000,
+						2048, 4000,
+						2048, 4000
+					};
 
 #elif defined HEXAPOD_ROBOT
 RobotType_t RobotType = HexapodRobot;
@@ -91,7 +102,6 @@ static const uint32_t ServoMaxPos = 4096;
 	*/
 uint8_t CTRL_WriteTipPosToBuf( TipPos_t* xTipPosBuf )
 {
-	uint8_t i=0;
 	LegAngle_t xLegAngleBuf[ctrlLEG_COUNT];
 	double dAngleBuf[ctrlSERVO_NUM];
 	
@@ -105,6 +115,7 @@ uint8_t CTRL_WriteTipPosToBuf( TipPos_t* xTipPosBuf )
 	return 0;
 }
 /* ---------------------------------------------------------------------------*/	
+
 /****
 	* @brief	移动足端到目标位置，设初始位置为0
 	* @param  	xTipPosBuf：足端位置数组（大地坐标系）
@@ -124,6 +135,35 @@ void CTRL_SetTipsPos( TipPos_t xTipPosBuf[ ctrlLEG_COUNT ] )
 	DXL_SetAllGoalPos( uxServoPosBuf );
 
 }
+/* ---------------------------------------------------------------------------*/	
+
+/****
+	* @brief	设定脚掌卷起状态
+	* @param  	pos: 0 - 255，表示卷起程度
+	* @retval 	无
+	*/
+void CTRL_SetAdhesionPos( int pos )
+{
+	uint8_t idBuf[ 4 ] = { 4, 8, 12, 16 };
+	uint32_t posBuf[ 4 ];
+	uint8_t i;
+	
+	if( pos < 0 )
+		pos = 0;
+	if( pos > 255 )
+		pos = 255;
+	
+	for( i = 0; i < 4; i++ )
+	{
+		posBuf[ i ] = ( pos * s_feetPosLimit[ i ][ 1 ] + 
+							( 255 - pos ) * s_feetPosLimit[ i ][ 0 ] ) / 255;
+	}
+	
+	DXL_RegSyncWrite( dxlREG_Goal_Position, 4, 4, posBuf, idBuf );
+	
+	
+}
+
 /****************************** 运动学逆解函数定义 ****************************/	
 /****
 	* @brief	计算每条腿运动学逆解，输入的足端位置必须以身体中心为原点，坐标系
@@ -135,7 +175,6 @@ void CTRL_InverseKinemix( TipPos_t xTipPosBuf[ctrlLEG_COUNT],
 						  LegAngle_t* xDstBuf)
 {
 	uint8_t i = 0;
-	LegAngle_t xBuf[ctrlLEG_COUNT];
 	Point3d xTmp;
 	for( i=0; i<ctrlLEG_COUNT; i++ )
 	{

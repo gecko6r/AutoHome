@@ -75,7 +75,7 @@ static uint16_t s_usServoVolt;
 static uint8_t s_ucOnlineServoCount = ctrlSERVO_NUM;
 
 //舵机初始化完毕？
-static bool s_bServoInitFinished = false;
+//static bool s_bServoInitFinished = false;
 
 
 
@@ -210,15 +210,31 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	uint8_t i = 0;
 	uint8_t j = 0;
 	uint8_t idCount = 0;
+	uint16_t usParamLen;
+	uint16_t usPacketLen;
+	uint16_t usPacketSize;
+	uint16_t usDxlCrcCheck = 0U;
+	
+	for(i=0; i< ucServoNum; i++) 
+	{
+		if( ucDxlIdBuf[ ucIdBuf[ i ] - 1 ] )
+		{
+			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + idCount*(usRegSize+1)] = ucIdBuf[i];
+
+			for(j=0; j<usRegSize; j++)
+				g_ucaServoTxBuffer[SYNC_OPT_START_ADDR+idCount*(usRegSize+1)+1 + j] 
+												= nthByteOf(ulDataBuf[idCount], j);
+			idCount++;
+		}
+		
+	}
 	
 	/* 参数长度：数据长度（Para1~ParaN） + 附加长度（寄存器地址，寄存器长度）*/
-	uint16_t usParamLen = 2+PARAM_ADD_LEN + ucServoNum * ( usRegSize + 1 );
+	usParamLen = 2+PARAM_ADD_LEN + idCount * ( usRegSize + 1 );
 	/* 包体长度：参数长度 + 附加长度（8位指令 + 16位校验码）*/
-	uint16_t usPacketLen = PACKET_ADD_LEN + usParamLen;
+	usPacketLen = PACKET_ADD_LEN + usParamLen;
 	/* 数据包总长：包体长度 + 剩余长度*/
-	uint16_t usPacketSize = usPacketLen + PACKET_LEFT_LEN;
-	
-	uint16_t usDxlCrcCheck = 0U;
+	usPacketSize = usPacketLen + PACKET_LEFT_LEN;
 	
 	g_ucaServoTxBuffer[eBYTE_ID]			= ID_BROADCAST;
 	g_ucaServoTxBuffer[eBYTE_LEN_L]			= LOW_BYTE(usPacketLen);
@@ -229,24 +245,14 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	g_ucaServoTxBuffer[BYTE_ParamN(3)]		= LOW_BYTE(usRegSize);
 	g_ucaServoTxBuffer[BYTE_ParamN(4)]		= HIGH_BYTE(usRegSize);
 	
-	for(i=0; i< ctrlSERVO_NUM; i++) 
-	{
-		if( ucDxlIdBuf[ i ] )
-		{
-			g_ucaServoTxBuffer[SYNC_OPT_START_ADDR + idCount*(usRegSize+1)] = ucIdBuf[i];
-
-			for(j=0; j<usRegSize; j++)
-				g_ucaServoTxBuffer[SYNC_OPT_START_ADDR+idCount*(usRegSize+1)+1 + j] 
-													= nthByteOf(ulDataBuf[idCount], j);
-			idCount++;
-		}
-	}
+	g_ucaServoTxBuffer[eBYTE_LEN_L]			= LOW_BYTE(usPacketLen);
+	g_ucaServoTxBuffer[eBYTE_LEN_H]			= HIGH_BYTE(usPacketLen);
 	
 	usDxlCrcCheck = CrcCheck(g_ucaServoTxBuffer, usPacketSize - 2);
 	g_ucaServoTxBuffer[usPacketSize - 2] = LOW_BYTE(usDxlCrcCheck);
 	g_ucaServoTxBuffer[usPacketSize - 1] = HIGH_BYTE(usDxlCrcCheck);
 	
-/*	
+	
 //////////////////////////////////////////////////////////////////////////////
 #ifdef IN_DEBUG_MODE
 	
@@ -255,7 +261,6 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
 	
 #endif
 //////////////////////////////////////////////////////////////////////////////
-*/
 
 	DMA_SendData( dmaServoTxStream, usPacketSize );
 	
@@ -271,7 +276,7 @@ void DXL_RegSyncWrite(uint16_t usRegAddr, uint16_t usRegSize,
     */
 int DXL_RegRead(uint16_t usRegAddr, uint16_t usRegSize, uint8_t ucId, uint32_t *pDst)
 {
-	uint32_t ret  = 0;
+	int ret  = 0;
 	uint8_t i = 0;
 	int start_byte;
 	/* 参数长度：寄存器地址+寄存器长度*/
@@ -775,31 +780,30 @@ int DXL_SetComBuf( COMM_MSG_E msgType )
 	uint8_t pbuf[ HALF_BUF_SIZE ];
 	uint8_t *p;
 	uint16_t size;
-	uint8_t regSize;
 	uint8_t bytesCopied = 0;
 	uint8_t servoOnlineCount = 0;
 	uint8_t servoCount = ctrlSERVO_NUM;
 	uint8_t ret;
 	uint8_t i;
-	if( msgType == MSG_SYS_Info || msgType == MSG_IMU )
+	if( msgType == eMsgSystemInfo || msgType == eMsgIMU )
 		return 1;
 	
-	if( msgType == MSG_Servo_Current )
+	if( msgType ==eMsgServoCurrent )
 	{
 		p = ( uint8_t *) s_usaServoCurrentBuf;
 		size =  sizeof( uint16_t );
 	}
-	else if( msgType == MSG_Servo_Pos )
+	else if( msgType == eMsgServoPos )
 	{
 		p = ( uint8_t *) s_ulaServoPosBuf;
 		size = sizeof( uint32_t );
 	}
-	else if( msgType == MSG_Servo_Vel )
+	else if( msgType == eMsgServoVel )
 	{
 		p = ( uint8_t *) s_ulaServoVelBuf;
 		size = sizeof( uint32_t );
 	}
-	else if( msgType == MSG_Servo_Volt )
+	else if( msgType == eMsgServoVolt )
 	{
 		p = ( uint8_t *) &s_usServoVolt;
 		size = sizeof( uint16_t );
@@ -808,7 +812,7 @@ int DXL_SetComBuf( COMM_MSG_E msgType )
 	}
 
 	
-	if( msgType != MSG_Servo_Volt )
+	if( msgType != eMsgServoVolt )
 		for( i = 0; i < servoCount; i++ )
 		{
 			if( !ucDxlIdBuf[ i ] )
